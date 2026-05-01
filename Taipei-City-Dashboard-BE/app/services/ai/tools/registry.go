@@ -1,11 +1,14 @@
 package tools
 
 import (
-	"TaipeiCityDashboardBE/app/models"
 	"context"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"TaipeiCityDashboardBE/app/models"
+
+	"github.com/tmc/langchaingo/llms"
 )
 
 // ToolFunc defines the signature for a tool function
@@ -13,10 +16,34 @@ type ToolFunc func(ctx context.Context, args string) (string, error)
 
 var registry = make(map[string]ToolFunc)
 
+// SearchComponentsTool defines the component hybrid search tool for the LLM.
+var SearchComponentsTool = llms.Tool{
+	Type: "function",
+	Function: &llms.FunctionDefinition{
+		Name:        "search_components_hybrid",
+		Description: "搜尋臺北城市儀表板中與用戶問題相關的資料視覺化元件。當用戶想了解特定城市議題或數據時使用此工具。",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]interface{}{
+					"type":        "string",
+					"description": "從用戶輸入中萃取的搜尋關鍵字，用繁體中文描述主題",
+				},
+				"limit": map[string]interface{}{
+					"type":        "integer",
+					"description": "回傳的元件數量，預設 8，最多 15",
+				},
+			},
+			"required": []string{"query"},
+		},
+	},
+}
+
 func init() {
 	// Register demo tools
 	Register("get_current_time", GetCurrentTime)
 	Register("get_population_summary", GetPopulationSummary)
+	Register("search_components_hybrid", SearchComponentsHybrid)
 }
 
 // Register adds a tool to the registry

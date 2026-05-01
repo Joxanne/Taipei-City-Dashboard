@@ -1,16 +1,20 @@
 package controllers
 
 import (
-	"TaipeiCityDashboardBE/app/services/ai"
-	"TaipeiCityDashboardBE/app/util"
 	"context"
 	"fmt"
 	"html"
 	"net/http"
+	
+	"TaipeiCityDashboardBE/app/services/ai"
+	aiTools "TaipeiCityDashboardBE/app/services/ai/tools"
+	"TaipeiCityDashboardBE/app/util"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tmc/langchaingo/llms"
 )
+
+const componentAssistantSystemPrompt = "你是臺北城市儀表板的 AI 小幫手。當用戶詢問與城市數據、交通、環境、人口等主題相關的問題時，請使用 search_components_hybrid 工具搜尋相關的儀表板元件，並根據搜尋結果給出具體的元件推薦。只推薦工具回傳且明顯符合用戶主題的元件，不要為了湊數量而把不相關元件說成相關；如果結果偏少，請直接說明目前找到的相關元件有限。回答請使用繁體中文，語氣友善專業。"
 
 // AIChatInput matches the Request Schema in specification。https://docs.twcloud.ai/docs/user-guides/twcc/afs/api-and-parameters/api-parameter-information#模型說明
 type AIChatInput struct {
@@ -72,7 +76,7 @@ func ChatWithTWCC(c *gin.Context) {
 		SessionID: sessionID,
 		UserID:    fmt.Sprintf("%d", accountID),
 		IPAddress: c.ClientIP(),
-		Messages:  input.ToServiceMessages(),
+		Messages:  withComponentAssistantPrompt(input.ToServiceMessages()),
 	}
 
 	// 3. Prepare Dynamic Options
@@ -133,6 +137,7 @@ func ChatWithTWCC(c *gin.Context) {
 				"total_tokens":  logEntry.TotalTokens,
 			},
 			"tool_used":   logEntry.ToolUsed,
+			"components":  logEntry.Components,
 			"latency_ms":  logEntry.LatencyMS,
 			"model":       logEntry.Model,
 			"provider":    logEntry.Provider,
@@ -181,6 +186,23 @@ func (input *AIChatInput) ToServiceMessages() []llms.MessageContent {
 	return serviceMsgs
 }
 
+func withComponentAssistantPrompt(messages []llms.MessageContent) []llms.MessageContent {
+	promptPart := llms.TextContent{Text: componentAssistantSystemPrompt}
+	for i, message := range messages {
+		if message.Role == llms.ChatMessageTypeSystem {
+			merged := make([]llms.MessageContent, len(messages))
+			copy(merged, messages)
+			merged[i].Parts = append([]llms.ContentPart{promptPart}, merged[i].Parts...)
+			return merged
+		}
+	}
+
+	return append([]llms.MessageContent{{
+		Role:  llms.ChatMessageTypeSystem,
+		Parts: []llms.ContentPart{promptPart},
+	}}, messages...)
+}
+
 // ToCallOptions extracts and maps AI generation options and tools
 func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 	options := make([]llms.CallOption, 0)
@@ -216,22 +238,27 @@ func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 	}
 
 	// Map Tools
-	if len(input.Tools) > 0 {
-		lt := make([]llms.Tool, 0)
-		for _, t := range input.Tools {
-			lt = append(lt, llms.Tool{
-				Type: t.Type,
-				Function: &llms.FunctionDefinition{
-					Name:        t.Function.Name,
-					Description: t.Function.Description,
-					Parameters:  t.Function.Parameters,
-				},
-			})
+	llmTools := make([]llms.Tool, 0, len(input.Tools)+1)
+	hasSearchComponentsTool := false
+	for _, t := range input.Tools {
+		if t.Function.Name == aiTools.SearchComponentsTool.Function.Name {
+			hasSearchComponentsTool = true
 		}
-		options = append(options, llms.WithTools(lt))
-		if input.ToolChoice != nil {
-			options = append(options, llms.WithToolChoice(input.ToolChoice))
-		}
+		llmTools = append(llmTools, llms.Tool{
+			Type: t.Type,
+			Function: &llms.FunctionDefinition{
+				Name:        t.Function.Name,
+				Description: t.Function.Description,
+				Parameters:  t.Function.Parameters,
+			},
+		})
+	}
+	if !hasSearchComponentsTool {
+		llmTools = append(llmTools, aiTools.SearchComponentsTool)
+	}
+	options = append(options, llms.WithTools(llmTools))
+	if input.ToolChoice != nil {
+		options = append(options, llms.WithToolChoice(input.ToolChoice))
 	}
 
 	if len(params) > 0 {
@@ -240,4 +267,3 @@ func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 
 	return options
 }
-

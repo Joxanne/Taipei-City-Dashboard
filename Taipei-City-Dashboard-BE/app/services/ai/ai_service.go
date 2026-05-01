@@ -1,15 +1,16 @@
 package ai
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
 	"TaipeiCityDashboardBE/app/models"
 	"TaipeiCityDashboardBE/app/services/ai/providers/twcc"
 	"TaipeiCityDashboardBE/app/services/ai/tools"
 	"TaipeiCityDashboardBE/global"
 	"TaipeiCityDashboardBE/logs"
-	"context"
-	"encoding/json"
-	"fmt"
-	"time"
 
 	"github.com/tmc/langchaingo/llms"
 	"golang.org/x/sync/semaphore"
@@ -65,17 +66,18 @@ func newSession(req AIChatRequest, options ...llms.CallOption) *aiSession {
 }
 
 type aiSession struct {
-	req             AIChatRequest
-	options         []llms.CallOption
-	callOpts        llms.CallOptions
-	currentMessages []llms.MessageContent
-	totalInput      int
-	totalOutput     int
-	toolUsed        bool
-	executedTools   []string
-	lastResp        *llms.ContentResponse
-	lastErr         error
-	startTime       time.Time
+	req              AIChatRequest
+	options          []llms.CallOption
+	callOpts         llms.CallOptions
+	currentMessages  []llms.MessageContent
+	totalInput       int
+	totalOutput      int
+	toolUsed         bool
+	executedTools    []string
+	componentResults []models.CityComponentScore
+	lastResp         *llms.ContentResponse
+	lastErr          error
+	startTime        time.Time
 }
 
 func (s *aiSession) run(ctx context.Context) (*models.AIChatLog, error) {
@@ -148,7 +150,7 @@ func (s *aiSession) updateTokens() {
 
 func (s *aiSession) executeTools(ctx context.Context, toolCalls []llms.ToolCall) error {
 	choice := s.lastResp.Choices[0]
-	
+
 	// Add Assistant's intent
 	s.currentMessages = append(s.currentMessages, llms.MessageContent{
 		Role:  llms.ChatMessageTypeAI,
@@ -161,6 +163,8 @@ func (s *aiSession) executeTools(ctx context.Context, toolCalls []llms.ToolCall)
 		if err != nil {
 			result = fmt.Sprintf("Error: %v. Please verify arguments.", err)
 			logs.FError("Tool Error: %v", err)
+		} else {
+			s.collectToolResult(tc.FunctionCall.Name, result)
 		}
 
 		s.currentMessages = append(s.currentMessages, llms.MessageContent{
@@ -173,6 +177,19 @@ func (s *aiSession) executeTools(ctx context.Context, toolCalls []llms.ToolCall)
 	return nil
 }
 
+func (s *aiSession) collectToolResult(name string, result string) {
+	if name != "search_components_hybrid" {
+		return
+	}
+
+	var components []models.CityComponentScore
+	if err := json.Unmarshal([]byte(result), &components); err != nil {
+		logs.FError("Failed to parse component tool result: %v", err)
+		return
+	}
+	s.componentResults = components
+}
+
 func (s *aiSession) injectInstructions() {
 	toolNames := ""
 	for i, t := range s.callOpts.Tools {
@@ -181,7 +198,7 @@ func (s *aiSession) injectInstructions() {
 	}
 
 	instruction := fmt.Sprintf("\nSystem Instruction:\n1. Use ONLY: [%s].\n2. NEVER nest tool calls \n3. Arguments MUST be literal values (strings, integers, etc.), never function calls \n4. For dependent tasks, call tools sequentially in separate turns.\n5. If stuck, respond with text.", toolNames)
-	
+
 	s.currentMessages = make([]llms.MessageContent, 0)
 	merged := false
 	for _, m := range s.req.Messages {
@@ -192,7 +209,7 @@ func (s *aiSession) injectInstructions() {
 			s.currentMessages = append(s.currentMessages, m)
 		}
 	}
-	
+
 	if !merged {
 		s.currentMessages = append([]llms.MessageContent{{
 			Role: llms.ChatMessageTypeSystem,
@@ -224,6 +241,7 @@ func (s *aiSession) finalize() (*models.AIChatLog, error) {
 		log.TotalTokens = s.totalInput + s.totalOutput
 		if s.toolUsed {
 			log.ToolUsed = true
+			log.Components = s.componentResults
 			if toolJSON, err := json.Marshal(s.executedTools); err == nil {
 				log.Tools = string(toolJSON)
 			}

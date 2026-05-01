@@ -73,3 +73,8 @@ Taipei-City-Dashboard-DE/docker/prod/.env
 *.py[cod]
 
 *.env
+
+spec/
+CLAUDE.md
+.claude/settings.local.json
+.github/instructions/taipei-city-dashboard-style.instructions.md

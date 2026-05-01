@@ -37,68 +37,81 @@ export const useChatStore = defineStore('chat', () => {
     	chatData.value.push({ id: chatData.value.length + 1, isDefault: false, ...newChatData });
   	};
 
+	const buildSessionId = () => {
+		const d = new Date();
+		const todayId =
+			d.getFullYear() +
+			String(d.getMonth() + 1).padStart(2, "0") +
+			String(d.getDate()).padStart(2, "0");
+
+		return "session_" + todayId;
+	};
+
+	const buildMessages = () => {
+		return chatData.value
+			.filter((m) => !m.isDefault && (m.role === "user" || m.role === "bot"))
+			.map((m) => ({
+				role: m.role === "bot" ? "assistant" : "user",
+				content: m.content,
+			}));
+	};
+	
+	const dedupeComponents = (components) => {
+		return Array.from(
+			components.reduce((map, item) => {
+				const key = item.index;
+				const exist = map.get(key);
+
+				if (!exist || item.city === "metrotaipei") {
+					map.set(key, item);
+				}
+
+				return map;
+			}, new Map()).values(),
+		);
+	};
+
   	const addQueryData = async (newChatData) => {
 
     	chatData.value.push({ id: chatData.value.length + 1, isDefault: false, ...newChatData });
 
 		recommendComponents.value = [];
-		let topK = null;
 
 		try {
-			const response = await http.post(
-  				"/vector/component",
-  				new URLSearchParams({
-    				query: newChatData.content,
-    				limit: 10,
-    				score: 0.8,
-  				}),
-  				{
-    				headers: {
-      					"Content-Type": "application/x-www-form-urlencoded",
-    				},
-  				}
+			const response = await http.post("/ai/chat/twai", {
+				session: buildSessionId(),
+				messages: buildMessages(),
+			});
+			const aiData = response.data?.data;
+			const aiContent = aiData?.content || "很抱歉，目前無法產生回覆，請稍後再試。";
+			const components = Array.isArray(aiData?.components) ? aiData.components : [];
+			recommendComponents.value = dedupeComponents(components);
+			const topK = [...recommendComponents.value].sort(
+				(a, b) => (Number(b.score) || 0) - (Number(a.score) || 0),
 			);
-			if (response.data?.data?.length > 0) {
-				recommendComponents.value = response.data.data;
+
+			chatData.value.push({
+				id: chatData.value.length + 1,
+				role: "bot",
+				isDefault: false,
+				button: topK.length > 0 ? [{ id: 1, text: "建立儀表板" }] : null,
+				content: aiContent,
+				relations: topK.length > 0 ? topK : null,
+			});
+
+			if (aiData?.tool_used === true) {
+				await saveChatLog(newChatData.content, recommendComponents.value);
 			}
 
-			// 去除重複項目存到 result
-			const result = Array.from(
-  				recommendComponents.value.reduce((map, item) => {
-    				const key = item.index
-    				const exist = map.get(key)
-
-    				// 如果還沒放過，直接放
-    				if (!exist) {
-      					map.set(key, item)
-      					return map
-    				}
-
-    				// 如果已存在，但現在的是 metrotaipei，就覆蓋
-    				if (item.city === 'metrotaipei') {
-      					map.set(key, item)
-    				}
-
-    				return map
-  				}, new Map()).values()
-			)
-			// 把 result 蓋回去 recommendComponents
-			recommendComponents.value = result
-
-		} catch (error) { 
-			console.error("VectorAnalysisError :", error);
+		} catch (error) {
+			console.error("AiChatError :", error);
+			chatData.value.push({
+				id: chatData.value.length + 1,
+				role: "bot",
+				isDefault: false,
+				content: "很抱歉，目前無法完成查詢，請稍後再試。",
+			});
 		}
-
-		if (recommendComponents.value && recommendComponents.value?.length > 0) {
-			topK = [...recommendComponents.value].sort((a, b) => b.score - a.score);
-			chatData.value.push({ id: chatData.value.length + 1, role: 'bot', isDefault: false, button: [{ id:1, text:'建立儀表板' }], content: `您好 😊 \n 以下是根據您的問題，自動為您推薦的「組件清單」。您可以將這些組件整批加入「個人儀表板」，方便日後快速查看與使用。\n`, relations: topK });
-			chatData.value.push({ id: chatData.value.length + 1, role: 'bot', isDefault: false, content: `若您有任何新的查詢或想深入探索的內容，都可以隨時在對話框告訴我～\n 我很樂意再協助您 💬✨` });
-		} else {
-			chatData.value.push({ id: chatData.value.length + 1, role: 'bot', isDefault: false, content: `很抱歉，您提供的描述沒有相似組件，請繼續提問 ! ` });
-		}
-
-		// 分析結束後紀錄問答log
-		saveChatLog(newChatData.content, recommendComponents.value);
   	};
 
 	const saveChatLog = async(question, answer) => {
