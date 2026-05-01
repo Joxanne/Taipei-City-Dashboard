@@ -14,7 +14,48 @@ import (
 // ToolFunc defines the signature for a tool function
 type ToolFunc func(ctx context.Context, args string) (string, error)
 
-var registry = make(map[string]ToolFunc)
+var (
+	registry         = make(map[string]ToolFunc)
+	toolDefinitions = make(map[string]llms.Tool)
+	toolOrder       []string
+)
+
+// CurrentTimeTool defines the current time tool for the LLM.
+var CurrentTimeTool = llms.Tool{
+	Type: "function",
+	Function: &llms.FunctionDefinition{
+		Name:        "get_current_time",
+		Description: "取得目前臺北時區的日期與時間。當用戶詢問現在時間、今天日期或需要以目前時間作為回答依據時使用。",
+		Parameters: map[string]interface{}{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+		},
+	},
+}
+
+// PopulationSummaryTool defines the population summary tool for the LLM.
+var PopulationSummaryTool = llms.Tool{
+	Type: "function",
+	Function: &llms.FunctionDefinition{
+		Name:        "get_population_summary",
+		Description: "查詢臺北市或新北市指定年份的人口年齡結構統計，包含幼年、青壯年、老年與總人口。",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"city": map[string]interface{}{
+					"type":        "string",
+					"description": "查詢城市。臺北市使用 taipei，新北市使用 new_taipei；未提供時預設臺北市。",
+					"enum":        []string{"taipei", "new_taipei"},
+				},
+				"year": map[string]interface{}{
+					"type":        "integer",
+					"description": "要查詢的西元年份，例如 2024。",
+				},
+			},
+			"required": []string{"year"},
+		},
+	},
+}
 
 // SearchComponentsTool defines the component hybrid search tool for the LLM.
 var SearchComponentsTool = llms.Tool{
@@ -40,15 +81,52 @@ var SearchComponentsTool = llms.Tool{
 }
 
 func init() {
-	// Register demo tools
-	Register("get_current_time", GetCurrentTime)
-	Register("get_population_summary", GetPopulationSummary)
-	Register("search_components_hybrid", SearchComponentsHybrid)
+	RegisterTool(CurrentTimeTool, GetCurrentTime)
+	RegisterTool(PopulationSummaryTool, GetPopulationSummary)
+	RegisterTool(SearchComponentsTool, SearchComponentsHybrid)
 }
 
 // Register adds a tool to the registry
 func Register(name string, fn ToolFunc) {
 	registry[name] = fn
+	if _, exists := toolDefinitions[name]; exists {
+		return
+	}
+
+	toolDefinitions[name] = llms.Tool{
+		Type: "function",
+		Function: &llms.FunctionDefinition{
+			Name: name,
+			Parameters: map[string]interface{}{
+				"type":       "object",
+				"properties": map[string]interface{}{},
+			},
+		},
+	}
+	toolOrder = append(toolOrder, name)
+}
+
+// RegisterTool adds an executable tool and its LLM-facing definition to the registry.
+func RegisterTool(tool llms.Tool, fn ToolFunc) {
+	if tool.Function == nil || tool.Function.Name == "" {
+		return
+	}
+
+	name := tool.Function.Name
+	if _, exists := toolDefinitions[name]; !exists {
+		toolOrder = append(toolOrder, name)
+	}
+	toolDefinitions[name] = tool
+	Register(name, fn)
+}
+
+// RegisteredTools returns all executable tools that should be exposed to the LLM.
+func RegisteredTools() []llms.Tool {
+	tools := make([]llms.Tool, 0, len(toolOrder))
+	for _, name := range toolOrder {
+		tools = append(tools, toolDefinitions[name])
+	}
+	return tools
 }
 
 // Execute calls a registered tool with the given arguments
@@ -83,11 +161,11 @@ func GetPopulationSummary(ctx context.Context, args string) (string, error) {
 
 	// Define result structure based on database schema
 	var result struct {
-		Year      int `gorm:"column:year"`
-		Young     int `gorm:"column:young_population"`
-		Working   int `gorm:"column:working_age_population"`
-		Elderly   int `gorm:"column:elderly_population"`
-		DataTime  time.Time `gorm:"column:data_time"`
+		Year     int       `gorm:"column:year"`
+		Young    int       `gorm:"column:young_population"`
+		Working  int       `gorm:"column:working_age_population"`
+		Elderly  int       `gorm:"column:elderly_population"`
+		DataTime time.Time `gorm:"column:data_time"`
 	}
 
 	// Query the dashboard database

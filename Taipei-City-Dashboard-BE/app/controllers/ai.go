@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	
+
 	"TaipeiCityDashboardBE/app/services/ai"
 	aiTools "TaipeiCityDashboardBE/app/services/ai/tools"
 	"TaipeiCityDashboardBE/app/util"
@@ -14,7 +14,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 )
 
-const componentAssistantSystemPrompt = "你是臺北城市儀表板的 AI 小幫手。當用戶詢問與城市數據、交通、環境、人口等主題相關的問題時，請使用 search_components_hybrid 工具搜尋相關的儀表板元件，並根據搜尋結果給出具體的元件推薦。只推薦工具回傳且明顯符合用戶主題的元件，不要為了湊數量而把不相關元件說成相關；如果結果偏少，請直接說明目前找到的相關元件有限。回答請使用繁體中文，語氣友善專業。"
+const componentAssistantSystemPrompt = "你是臺北城市儀表板的 AI 小幫手。請依用戶問題選擇合適工具：需要目前日期時間時使用 get_current_time；查詢臺北市或新北市指定年份的人口年齡結構時使用 get_population_summary；詢問城市數據、交通、環境、人口等主題並需要推薦儀表板元件時使用 search_components_hybrid。只引用工具實際回傳且明顯符合問題的資料，不要為了湊數量而把不相關結果說成相關；如果結果偏少，請直接說明目前找到的相關資料有限。回答請使用繁體中文，語氣友善專業。"
 
 // AIChatInput matches the Request Schema in specification。https://docs.twcloud.ai/docs/user-guides/twcc/afs/api-and-parameters/api-parameter-information#模型說明
 type AIChatInput struct {
@@ -136,11 +136,12 @@ func ChatWithTWCC(c *gin.Context) {
 				"output_tokens": logEntry.OutputTokens,
 				"total_tokens":  logEntry.TotalTokens,
 			},
-			"tool_used":   logEntry.ToolUsed,
-			"components":  logEntry.Components,
-			"latency_ms":  logEntry.LatencyMS,
-			"model":       logEntry.Model,
-			"provider":    logEntry.Provider,
+			"tool_used":  logEntry.ToolUsed,
+			"tools":      logEntry.Tools,
+			"components": logEntry.Components,
+			"latency_ms": logEntry.LatencyMS,
+			"model":      logEntry.Model,
+			"provider":   logEntry.Provider,
 		},
 	})
 }
@@ -238,23 +239,30 @@ func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 	}
 
 	// Map Tools
-	llmTools := make([]llms.Tool, 0, len(input.Tools)+1)
-	hasSearchComponentsTool := false
+	registeredTools := aiTools.RegisteredTools()
+	llmTools := make([]llms.Tool, 0, len(input.Tools)+len(registeredTools))
+	seenTools := make(map[string]struct{}, len(input.Tools)+len(registeredTools))
 	for _, t := range input.Tools {
-		if t.Function.Name == aiTools.SearchComponentsTool.Function.Name {
-			hasSearchComponentsTool = true
-		}
-		llmTools = append(llmTools, llms.Tool{
+		tool := llms.Tool{
 			Type: t.Type,
 			Function: &llms.FunctionDefinition{
 				Name:        t.Function.Name,
 				Description: t.Function.Description,
 				Parameters:  t.Function.Parameters,
 			},
-		})
+		}
+		llmTools = append(llmTools, tool)
+		seenTools[t.Function.Name] = struct{}{}
 	}
-	if !hasSearchComponentsTool {
-		llmTools = append(llmTools, aiTools.SearchComponentsTool)
+	for _, tool := range registeredTools {
+		if tool.Function == nil || tool.Function.Name == "" {
+			continue
+		}
+		if _, exists := seenTools[tool.Function.Name]; exists {
+			continue
+		}
+		llmTools = append(llmTools, tool)
+		seenTools[tool.Function.Name] = struct{}{}
 	}
 	options = append(options, llms.WithTools(llmTools))
 	if input.ToolChoice != nil {
