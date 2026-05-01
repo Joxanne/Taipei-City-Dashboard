@@ -9,6 +9,7 @@ import { useRoute } from "vue-router";
 import { useFullscreen } from "@vueuse/core";
 import { useAuthStore } from "../../../store/authStore";
 import { useDialogStore } from "../../../store/dialogStore";
+import { useChatStore } from "../../../store/chatStore";
 
 import UserSettings from "../../dialogs/UserSettings.vue";
 import ContributorsList from "../../dialogs/ContributorsList.vue";
@@ -16,6 +17,7 @@ import ContributorsList from "../../dialogs/ContributorsList.vue";
 const route = useRoute();
 const authStore = useAuthStore();
 const dialogStore = useDialogStore();
+const chatStore = useChatStore();
 const { isFullscreen, toggle } = useFullscreen();
 
 const linkQuery = computed(() => {
@@ -82,6 +84,13 @@ const isLocalhost = computed(() => {
       </router-link>
     </div>
     <div class="navbar-user">
+      <button
+        class="navbar-ask-ai"
+        @click="chatStore.togglePanel"
+      >
+        <span>smart_toy</span>
+        Ask AI
+      </button>
       <button
         v-if="!(authStore.isMobileDevice && authStore.isNarrowDevice)"
         class="hide-if-mobile"
@@ -251,6 +260,36 @@ const isLocalhost = computed(() => {
 	&-user {
 		display: flex;
 		align-items: center;
+
+		.navbar-ask-ai {
+			height: 28px;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+			margin-right: var(--font-m);
+			padding: 2px 8px;
+			border: 1px solid var(--color-border);
+			border-radius: 4px;
+			background: transparent;
+			font-size: var(--font-s);
+			transition: background-color 0.2s;
+			cursor: pointer;
+
+			span {
+				font-size: calc(var(--font-m) * var(--font-to-icon));
+			}
+
+			&:hover {
+				background-color: var(--color-complement-text);
+			}
+
+			@media screen and (max-width: 750px) {
+				display: none;
+			}
+			@media screen and (max-height: 500px) {
+				display: none;
+			}
+		}
 
 		li a,
 		button {
