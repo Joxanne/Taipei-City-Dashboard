@@ -256,6 +256,29 @@ export const useChatStore = defineStore("chat", () => {
 		}
 	};
 
+	const sendFilterResultsToAI = async (features, layerTitle, userQuestion = "") => {
+		isOpen.value = true;
+		view.value = "chat";
+		if (!currentSessionId.value) {
+			currentSessionId.value = generateSessionId();
+		}
+		const sample = features.slice(0, 20);
+		const stopList = sample
+			.map((f) => {
+				const p = f.properties || {};
+				const name = p.stop_name || "未命名";
+				const min = p.nearest_estimate_min;
+				return min > 0 ? `${name}（預計 ${min} 分鐘到站）` : name;
+			})
+			.join("、");
+		const extra = features.length > 20 ? `（以下列出前 20 個）` : "";
+		const context = `等時圈範圍內共找到 ${features.length} 個${layerTitle}${extra}：${stopList}。`;
+		const question = userQuestion.trim()
+			? userQuestion.trim()
+			: "請用繁體中文幫我摘要這些站點資訊。";
+		await addQueryData({ role: "user", content: `${context}\n${question}` });
+	};
+
 	const saveChatLog = async (question, answer) => {
 		if (!currentSessionId.value || !authStore.token) return;
 
@@ -292,5 +315,6 @@ export const useChatStore = defineStore("chat", () => {
 		handleBackToSessions,
 		addChatData,
 		addQueryData,
+		sendFilterResultsToAI,
 	};
 });

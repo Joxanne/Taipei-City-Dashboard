@@ -20,7 +20,7 @@ import axios from "axios";
 import http from "../router/axios.js";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { point, distance } from "@turf/turf";
+import { point, distance, booleanPointInPolygon } from "@turf/turf";
 
 // Other Stores
 import { useAuthStore } from "./authStore";
@@ -103,6 +103,7 @@ export const useMapStore = defineStore("map", {
 			profile: "driving-traffic",
 			minutes: [15, 30, 45, 60],
 			visible: false,
+			geojson: null,
 		},
 		// 地圖點選起點模式
 		isPickingOrigin: false,
@@ -2693,6 +2694,7 @@ export const useMapStore = defineStore("map", {
 				// 外圈先畫，內圈後畫，避免外圈蓋住內圈
 				geojson.features.reverse();
 				this.removeIsochroneOverlay();
+				this.isochroneState.geojson = geojson;
 				const addLayers = () => {
 					this.map.addSource("isochrone-src", {
 						type: "geojson",
@@ -2738,6 +2740,8 @@ export const useMapStore = defineStore("map", {
 			if (this.map.getSource("isochrone-src"))
 				this.map.removeSource("isochrone-src");
 			this.isochroneState.visible = false;
+			this.isochroneState.geojson = null;
+			this.clearFilteredLayer();
 		},
 		toggleIsochroneVisibility() {
 			if (!this.map) return;
@@ -2747,6 +2751,56 @@ export const useMapStore = defineStore("map", {
 			if (this.map.getLayer("isochrone-line"))
 				this.map.setLayoutProperty("isochrone-line", "visibility", vis);
 			this.isochroneState.visible = !this.isochroneState.visible;
+		},
+		filterPOIsInIsochrone(layerId) {
+			if (!this.isochroneState.geojson || !this.map) return [];
+			const sourceId = `${layerId}-source`;
+			if (!this.map.getSource(sourceId)) return [];
+			const allFeatures = this.map.querySourceFeatures(sourceId);
+			const isoFeatures = this.isochroneState.geojson.features;
+			const seen = new Set();
+			const unique = allFeatures.filter((f) => {
+				const key = f.geometry.coordinates.join(",");
+				if (seen.has(key)) return false;
+				seen.add(key);
+				return true;
+			});
+			return unique.filter((f) => {
+				const pt = point(f.geometry.coordinates);
+				return isoFeatures.some((iso) => booleanPointInPolygon(pt, iso));
+			});
+		},
+		addFilteredLayer(features) {
+			if (!this.map || !features.length) return;
+			this.clearFilteredLayer();
+			const geojson = { type: "FeatureCollection", features };
+			const addLayer = () => {
+				this.map.addSource("filtered-poi-source", {
+					type: "geojson",
+					data: geojson,
+				});
+				this.map.addLayer({
+					id: "filtered-poi-layer",
+					type: "circle",
+					source: "filtered-poi-source",
+					paint: {
+						"circle-radius": 8,
+						"circle-color": "#ffffff",
+						"circle-stroke-width": 2.5,
+						"circle-stroke-color": "#f97316",
+						"circle-opacity": 0.95,
+					},
+				});
+			};
+			if (this.map.isStyleLoaded()) addLayer();
+			else this.map.once("style.load", addLayer);
+		},
+		clearFilteredLayer() {
+			if (!this.map) return;
+			if (this.map.getLayer("filtered-poi-layer"))
+				this.map.removeLayer("filtered-poi-layer");
+			if (this.map.getSource("filtered-poi-source"))
+				this.map.removeSource("filtered-poi-source");
 		},
 	},
 });

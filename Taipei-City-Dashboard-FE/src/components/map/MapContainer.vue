@@ -14,6 +14,7 @@ import MobileLayers from "../dialogs/MobileLayers.vue";
 import IncidentReport from "../dialogs/IncidentReport.vue";
 import FindClosestPoint from "../dialogs/FindClosestPoint.vue";
 import MapLayerPanel from "./MapLayerPanel.vue";
+import FilterPanel from "./FilterPanel.vue";
 import { savedLocations } from "../../assets/configs/mapbox/savedLocations.js";
 
 const authStore = useAuthStore();
@@ -25,6 +26,7 @@ const route = useRoute();
 const districtLayer = ref(false);
 const villageLayer = ref(false);
 const showLayerPanel = ref(false);
+const showFilterPanel = ref(false);
 
 // crosshair cursor when user is picking an origin on the map
 watch(
@@ -146,9 +148,22 @@ onMounted(() => {
           }"
           title="圖層與通勤圈"
           type="button"
-          @click="showLayerPanel = !showLayerPanel"
+          @click="showLayerPanel = !showLayerPanel; showFilterPanel = false"
         >
           圈
+        </button>
+        <button
+          v-if="mapStore.isochroneState.visible"
+          :style="{
+            color: showFilterPanel
+              ? 'var(--color-highlight)'
+              : 'var(--color-component-background)',
+          }"
+          title="等時圈範圍過濾"
+          type="button"
+          @click="showFilterPanel = !showFilterPanel; showLayerPanel = false"
+        >
+          濾
         </button>
         <button
           class="show-if-mobile"
@@ -173,6 +188,7 @@ onMounted(() => {
         !
       </button><!-- The key prop informs vue that the component should be updated when switching dashboards -->
       <MapLayerPanel v-if="showLayerPanel" />
+      <FilterPanel v-if="showFilterPanel" />
       <MobileLayers :key="contentStore.currentDashboard.index" />
       <IncidentReport />
       <FindClosestPoint />
