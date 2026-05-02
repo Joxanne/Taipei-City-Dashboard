@@ -1,5 +1,11 @@
 """
 static_bus_stops.py - 大臺北公車站點資料管線
+
+前置條件:
+  執行本腳本前，請先確認已跑過 static_district_boundary.py 以建立
+  public.tp_district 與 public.tw_village 行政區界表，
+  否則 _enrich_district() 的 ST_Within 空間 join 將失敗。
+
 資料來源:
   臺北市 - GetRoute.gz / GetStop.gz (tcgbusfs/blobbus)
   新北市 - GetRoute.gz / GetStop.gz (tcgbusfs/ntpcbus)
@@ -206,6 +212,7 @@ def _save_stops(cur, records: list[dict]) -> None:
             stop_name_en     VARCHAR(200),
             latitude         DOUBLE PRECISION,
             longitude        DOUBLE PRECISION,
+            district         VARCHAR(20),
             data_time        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             _ctime           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             _mtime           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -229,6 +236,45 @@ def _save_stops(cur, records: list[dict]) -> None:
             _mtime       = EXCLUDED._mtime
     """, records, page_size=500)
     print(f"[PostgreSQL] bus_stop_tpe 寫入 {len(records)} 筆")
+
+
+def _enrich_district(cur) -> None:
+    cur.execute("""
+        ALTER TABLE public.bus_stop_tpe
+        ADD COLUMN IF NOT EXISTS district VARCHAR(20)
+    """)
+    # 先清空，避免上次殘留的值干擾
+    cur.execute("UPDATE public.bus_stop_tpe SET district = NULL")
+
+    print("[enrichment] 補行政區（臺北市 tp_district）...")
+    cur.execute("""
+        UPDATE public.bus_stop_tpe s
+        SET district = d.tname
+        FROM public.tp_district d
+        WHERE s.latitude  IS NOT NULL
+          AND s.longitude IS NOT NULL
+          AND ST_Within(
+                ST_SetSRID(ST_MakePoint(s.longitude, s.latitude), 4326),
+                d.wkb_geometry
+              )
+    """)
+    print(f"[enrichment] 臺北市更新 {cur.rowcount} 筆")
+
+    print("[enrichment] 補行政區（新北市 tw_village）...")
+    cur.execute("""
+        UPDATE public.bus_stop_tpe s
+        SET district = v.town_name
+        FROM public.tw_village v
+        WHERE s.district   IS NULL
+          AND s.latitude   IS NOT NULL
+          AND s.longitude  IS NOT NULL
+          AND v.county_name = '新北市'
+          AND ST_Within(
+                ST_SetSRID(ST_MakePoint(s.longitude, s.latitude), 4326),
+                v.wkb_geometry
+              )
+    """)
+    print(f"[enrichment] 新北市更新 {cur.rowcount} 筆")
 
 
 def _save_route_stops(cur, records: list[dict]) -> None:
@@ -271,6 +317,7 @@ def save_to_postgres(route_records: list[dict],
     _save_routes(cur, route_records)
     _save_stops(cur, stop_records)
     _save_route_stops(cur, route_stop_records)
+    _enrich_district(cur)
     conn.commit()
     cur.close()
     conn.close()
