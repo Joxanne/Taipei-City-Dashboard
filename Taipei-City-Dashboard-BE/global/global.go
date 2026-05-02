@@ -122,7 +122,7 @@ var (
 		MaxConcurrent: getIntEnv("TWCC_MAX_CONCURRENT", 100),
 	}
 
-	MapboxToken = getEnv("MAPBOX_ACCESS_TOKEN", "")
+	MapboxToken = getEnv("VITE_MAPBOXTOKEN", "")
 	
 	LMSession *ort.DynamicSession[int64, float32]
 	LMTokenizer *tokenizer.Tokenizer
