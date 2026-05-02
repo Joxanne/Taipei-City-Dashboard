@@ -1001,6 +1001,15 @@ export const useContentStore = defineStore("content", {
 
 			dialogStore.showNotification("success", "成功新增儀表板");
 		},
+		async createDashboardFromAI(groupName, componentIds) {
+			this.editDashboard = {
+				index: "",
+				name: groupName,
+				icon: "smart_toy",
+				components: componentIds.map((id) => ({ id })),
+			};
+			await this.createDashboard();
+		},
 		// 2. Call this function to edit the current dashboard (only personal dashboards)
 		async editCurrentDashboard() {
 			const dialogStore = useDialogStore();

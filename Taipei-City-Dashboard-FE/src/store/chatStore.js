@@ -2,6 +2,8 @@ import { ref } from "vue";
 import { defineStore } from "pinia";
 import http from "../router/axios";
 import { useAuthStore } from "./authStore";
+import { useContentStore } from "./contentStore";
+import { useMapStore } from "./mapStore";
 
 export const useChatStore = defineStore("chat", () => {
 	const authStore = useAuthStore();
@@ -176,12 +178,37 @@ export const useChatStore = defineStore("chat", () => {
 			}));
 	};
 
+	const handleToolAction = (event) => {
+		if (event.action === "create_group") {
+			const contentStore = useContentStore();
+			contentStore.createDashboardFromAI(
+				event.payload.group_name,
+				event.payload.component_ids,
+			);
+		} else if (event.action === "toggle_component") {
+			const mapStore = useMapStore();
+			mapStore.toggleComponentById(
+				event.payload.component_id,
+				event.payload.visible,
+			);
+		} else if (event.action === "show_isochrone") {
+			const mapStore = useMapStore();
+			mapStore.addIsochroneOverlay({
+				lng: parseFloat(event.payload.lng),
+				lat: parseFloat(event.payload.lat),
+				profile: event.payload.profile || "driving-traffic",
+				minutes: event.payload.minutes,
+			});
+		}
+	};
+
 	const addQueryData = async (newChatData) => {
 		if (!currentSessionId.value) {
 			currentSessionId.value = generateSessionId();
 		}
 
 		addChatData(newChatData);
+		const requestMessages = buildMessages();
 
 		if (!authStore.token) {
 			addChatData({
@@ -196,16 +223,19 @@ export const useChatStore = defineStore("chat", () => {
 		try {
 			const response = await http.post("/ai/chat/twai", {
 				session: currentSessionId.value,
-				messages: buildMessages(),
+				messages: requestMessages,
 			});
 			const aiData = response.data?.data;
-			const aiContent = aiData?.content || "很抱歉，目前無法產生回覆，請稍後再試。";
+			const aiContent =
+				aiData?.content || "很抱歉，目前無法產生回覆，請稍後再試。";
 
-			chatData.value.push({
-				id: chatData.value.length + 1,
+			addChatData({
 				role: "bot",
-				isDefault: false,
 				content: aiContent,
+			});
+
+			(aiData?.tool_actions || []).forEach((event) => {
+				handleToolAction(event);
 			});
 
 			await saveChatLog(newChatData.content, aiContent);
@@ -217,10 +247,8 @@ export const useChatStore = defineStore("chat", () => {
 					? "請先登入會員以使用此功能喔！"
 					: "很抱歉，目前無法完成查詢，請稍後再試。";
 
-			chatData.value.push({
-				id: chatData.value.length + 1,
+			addChatData({
 				role: "bot",
-				isDefault: false,
 				content,
 			});
 		} finally {

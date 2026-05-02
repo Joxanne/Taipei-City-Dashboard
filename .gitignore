@@ -84,3 +84,5 @@ DataPreprocess/
 .claude/
 .codex/
 .copilot/
+pyproject.toml
+uv.lock

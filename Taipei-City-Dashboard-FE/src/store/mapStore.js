@@ -24,6 +24,7 @@ import { point, distance } from "@turf/turf";
 
 // Other Stores
 import { useAuthStore } from "./authStore";
+import { useContentStore } from "./contentStore";
 import { useDialogStore } from "./dialogStore";
 
 // Vue Components
@@ -2629,17 +2630,55 @@ export const useMapStore = defineStore("map", {
 				);
 			}
 		},
+		toggleComponentById(componentId, visible) {
+			if (!this.map) return;
+
+			const contentStore = useContentStore();
+			const componentCollections = [
+				contentStore.currentDashboard.components,
+				contentStore.mapLayers,
+				contentStore.allMapLayers,
+				contentStore.components,
+				contentStore.cityDashboard.components,
+			];
+			const component = componentCollections
+				.flatMap((items) => (Array.isArray(items) ? items : []))
+				.find((item) => Number(item.id) === Number(componentId));
+
+			if (!component?.map_config?.[0]) return;
+
+			if (visible) {
+				this.addToMapLayerList(component.map_config);
+			} else {
+				this.clearByParamFilter(component.map_config);
+				this.turnOffMapLayerVisibility(component.map_config);
+			}
+		},
 		async addIsochroneOverlay({ lng, lat, profile, minutes, colors }) {
 			if (!this.map) return;
-			const COLORS = colors ?? ["2ecc71", "f1c40f", "e67e22", "e74c3c"];
-			const url =
-				`/api/dev/isochrone/?profile=${profile}&lng=${lng}&lat=${lat}` +
-				`&minutes=${minutes.join(",")}` +
-				`&colors=${COLORS.join(",")}`;
+			const normalizedMinutes =
+				Array.isArray(minutes) && minutes.length > 0
+					? minutes
+					: [minutes ?? 30];
+			const defaultColors = ["2ecc71", "f1c40f", "e67e22", "e74c3c"];
+			const normalizedColors = (colors ?? defaultColors).slice(
+				0,
+				normalizedMinutes.length,
+			);
+			const params = new URLSearchParams({
+				profile: profile || "driving-traffic",
+				lng,
+				lat,
+				minutes: normalizedMinutes.join(","),
+				colors: normalizedColors.join(","),
+			});
+			const url = `/api/dev/isochrone/?${params.toString()}`;
 
 			this.isochroneState.isLoading = true;
 			try {
-				const geojson = await fetch(url).then((r) => r.json());
+				const response = await fetch(url);
+				if (!response.ok) throw new Error(`HTTP ${response.status}`);
+				const geojson = await response.json();
 				if (!geojson?.features?.length) throw new Error("Isochrone API error");
 				// 外圈先畫，內圈後畫，避免外圈蓋住內圈
 				geojson.features.reverse();

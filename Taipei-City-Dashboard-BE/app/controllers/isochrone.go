@@ -6,18 +6,22 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
+var defaultIsochroneColors = []string{"2ecc71", "f1c40f", "e67e22", "e74c3c"}
+
 // GetIsochrone proxies the Mapbox Isochrone API and caches the response in Redis.
-// Query params: lng, lat, profile (default: driving-traffic), minutes (default: 15,30,45,60), colors
+// Query params: lng, lat, profile (default: driving-traffic), minutes (default: 30), colors
 func GetIsochrone(c *gin.Context) {
 	lng := c.Query("lng")
 	lat := c.Query("lat")
 	profile := c.DefaultQuery("profile", "driving-traffic")
-	minutes := c.DefaultQuery("minutes", "15,30,45,60")
+	minutes := c.DefaultQuery("minutes", "30")
 	colors := c.DefaultQuery("colors", "2ecc71,f1c40f,e67e22,e74c3c")
 
 	if lng == "" || lat == "" {
@@ -30,7 +34,9 @@ func GetIsochrone(c *gin.Context) {
 		return
 	}
 
-	cacheKey := fmt.Sprintf("isochrone:%s:%s:%s:%s", profile, lng, lat, minutes)
+	colors = normalizeIsochroneColors(minutes, colors)
+
+	cacheKey := fmt.Sprintf("isochrone:%s:%s:%s:%s:%s", profile, lng, lat, minutes, colors)
 
 	// Return cached response if available
 	if cached, err := cache.Redis.Get(cacheKey).Bytes(); err == nil {
@@ -38,10 +44,14 @@ func GetIsochrone(c *gin.Context) {
 		return
 	}
 
-	apiURL := fmt.Sprintf(
-		"https://api.mapbox.com/isochrone/v1/mapbox/%s/%s,%s?contours_minutes=%s&contours_colors=%s&polygons=true&generalize=50&denoise=1&access_token=%s",
-		profile, lng, lat, minutes, colors, global.MapboxToken,
-	)
+	params := url.Values{}
+	params.Set("contours_minutes", minutes)
+	params.Set("contours_colors", colors)
+	params.Set("polygons", "true")
+	params.Set("generalize", "50")
+	params.Set("denoise", "1")
+	params.Set("access_token", global.MapboxToken)
+	apiURL := fmt.Sprintf("https://api.mapbox.com/isochrone/v1/mapbox/%s/%s,%s?%s", profile, lng, lat, params.Encode())
 
 	req, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, apiURL, nil)
 	if err != nil {
@@ -72,4 +82,38 @@ func GetIsochrone(c *gin.Context) {
 	}
 
 	c.Data(resp.StatusCode, "application/json", body)
+}
+
+func normalizeIsochroneColors(minutes string, colors string) string {
+	minuteParts := splitNonEmpty(minutes)
+	if len(minuteParts) == 0 {
+		minuteParts = []string{"30"}
+	}
+
+	colorParts := splitNonEmpty(colors)
+	if len(colorParts) == 0 {
+		colorParts = defaultIsochroneColors
+	}
+
+	normalized := make([]string, 0, len(minuteParts))
+	for i := range minuteParts {
+		if i < len(colorParts) {
+			normalized = append(normalized, colorParts[i])
+		} else {
+			normalized = append(normalized, defaultIsochroneColors[i%len(defaultIsochroneColors)])
+		}
+	}
+	return strings.Join(normalized, ",")
+}
+
+func splitNonEmpty(value string) []string {
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
 }

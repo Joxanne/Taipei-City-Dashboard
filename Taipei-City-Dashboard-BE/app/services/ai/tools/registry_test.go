@@ -70,6 +70,27 @@ func TestToolBuilderRequiredAndOptionalParams(t *testing.T) {
 	}
 }
 
+func TestToolBuilderRequiredIntegerArray(t *testing.T) {
+	registration := NewTool("test_array", "description", testToolHandler).
+		RequiredIntegerArray("component_ids", "component ids").
+		Build()
+
+	parameters := registration.tool.Function.Parameters.(map[string]interface{})
+	properties := parameters["properties"].(map[string]interface{})
+	componentIDs := properties["component_ids"].(map[string]interface{})
+	if componentIDs["type"] != "array" || componentIDs["description"] != "component ids" {
+		t.Fatalf("unexpected array schema: %#v", componentIDs)
+	}
+	items := componentIDs["items"].(map[string]interface{})
+	if items["type"] != "integer" {
+		t.Fatalf("unexpected array item schema: %#v", items)
+	}
+	required := parameters["required"].([]string)
+	if len(required) != 1 || required[0] != "component_ids" {
+		t.Fatalf("unexpected required fields: %#v", required)
+	}
+}
+
 func TestRegisterValidation(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -135,8 +156,11 @@ func TestRegisterDeduplicatesRegisteredTools(t *testing.T) {
 
 func TestRegisteredToolsIncludeBuiltInsWithRequiredTWCCFields(t *testing.T) {
 	expected := map[string]bool{
+		"create_component_group": false,
 		"get_current_time":       false,
 		"get_population_summary": false,
+		"show_isochrone":         false,
+		"toggle_component":       false,
 	}
 
 	for _, tool := range RegisteredTools() {

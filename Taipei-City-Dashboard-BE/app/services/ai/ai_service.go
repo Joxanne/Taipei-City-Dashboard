@@ -76,6 +76,7 @@ type aiSession struct {
 	toolUsed         bool
 	executedTools    []string
 	componentResults []models.CityComponentScore
+	toolActions      []tools.ToolActionEvent
 	lastResp         *llms.ContentResponse
 	lastErr          error
 	startTime        time.Time
@@ -162,9 +163,14 @@ func (s *aiSession) executeTools(ctx context.Context, toolCalls []llms.ToolCall)
 		Parts: append([]llms.ContentPart{llms.TextContent{Text: choice.Content}}, toolsToParts(toolCalls)...),
 	})
 
+	toolCtx := tools.WithToolActionSink(ctx, func(event tools.ToolActionEvent) {
+		s.toolActions = append(s.toolActions, event)
+	})
+	toolCtx = tools.WithStreamingFunc(toolCtx, s.callOpts.StreamingFunc)
+
 	for _, tc := range toolCalls {
 		s.executedTools = append(s.executedTools, tc.FunctionCall.Name)
-		result, err := tools.Execute(ctx, tc.FunctionCall.Name, tc.FunctionCall.Arguments)
+		result, err := tools.Execute(toolCtx, tc.FunctionCall.Name, tc.FunctionCall.Arguments)
 		if err != nil {
 			result = fmt.Sprintf("Error: %v. Please verify arguments.", err)
 			logs.FError("Tool Error: %v", err)
@@ -232,6 +238,7 @@ func (s *aiSession) finalize() (*models.AIChatLog, error) {
 		log.InputTokens, log.OutputTokens = s.totalInput, s.totalOutput
 		log.TotalTokens = s.totalInput + s.totalOutput
 		log.Components = s.componentResults
+		log.ToolActions = convertToolActions(s.toolActions)
 		if s.toolUsed {
 			log.ToolUsed = true
 			if toolJSON, err := json.Marshal(s.executedTools); err == nil {
@@ -244,6 +251,21 @@ func (s *aiSession) finalize() (*models.AIChatLog, error) {
 		logs.FError("DB Log Error: %v", err)
 	}
 	return log, nil
+}
+
+func convertToolActions(actions []tools.ToolActionEvent) []models.AIChatToolAction {
+	if len(actions) == 0 {
+		return nil
+	}
+	converted := make([]models.AIChatToolAction, 0, len(actions))
+	for _, action := range actions {
+		converted = append(converted, models.AIChatToolAction{
+			Type:    action.Type,
+			Action:  action.Action,
+			Payload: action.Payload,
+		})
+	}
+	return converted
 }
 
 func toolsToParts(calls []llms.ToolCall) []llms.ContentPart {

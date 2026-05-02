@@ -15,6 +15,7 @@ type AIChatLog struct {
 	Answer       string               `gorm:"type:text" json:"answer"`
 	ToolUsed     bool                 `gorm:"default:false" json:"tool_used"`
 	Components   []CityComponentScore `gorm:"-" json:"components,omitempty"`
+	ToolActions  []AIChatToolAction   `gorm:"-" json:"tool_actions,omitempty"`
 	Tools        string               `gorm:"type:jsonb" json:"tools"` // Stored as JSONB in DB
 	InputTokens  int                  `gorm:"default:0" json:"input_tokens"`
 	OutputTokens int                  `gorm:"default:0" json:"output_tokens"`
@@ -25,6 +26,12 @@ type AIChatLog struct {
 	ErrorMessage string               `gorm:"type:text" json:"error_message"`
 	IPAddress    string               `gorm:"type:varchar(45);not null" json:"ip_address"`
 	CreatedAt    time.Time            `gorm:"not null;default:now()" json:"created_at"`
+}
+
+type AIChatToolAction struct {
+	Type    string      `json:"type"`
+	Action  string      `json:"action"`
+	Payload interface{} `json:"payload"`
 }
 
 // TableName overrides the table name used by AIChatLog to `ai_chatlog`

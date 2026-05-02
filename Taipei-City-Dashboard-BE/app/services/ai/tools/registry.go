@@ -74,6 +74,17 @@ func (b *ToolBuilder) RequiredInteger(name string, description string) *ToolBuil
 	return b.addProperty(name, "integer", description, true)
 }
 
+// RequiredIntegerArray adds a required integer array parameter.
+func (b *ToolBuilder) RequiredIntegerArray(name string, description string) *ToolBuilder {
+	b.properties[name] = map[string]interface{}{
+		"type":        "array",
+		"description": description,
+		"items":       map[string]interface{}{"type": "integer"},
+	}
+	b.addRequired(name)
+	return b
+}
+
 // OptionalInteger adds an optional integer parameter.
 func (b *ToolBuilder) OptionalInteger(name string, description string) *ToolBuilder {
 	return b.addProperty(name, "integer", description, false)

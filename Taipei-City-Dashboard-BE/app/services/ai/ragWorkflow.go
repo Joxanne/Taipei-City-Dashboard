@@ -49,7 +49,7 @@ func buildRAGContext(components []models.CityComponentScore) string {
 	var sb strings.Builder
 	sb.WriteString("\n\n以下是系統檢索到的候選儀表板元件，可能與用戶問題相關。\n請先判斷是否真的相關；只有明確相關時才引用。若與問題無關，請忽略，不要主動提及：\n")
 	for i, c := range components {
-		sb.WriteString(fmt.Sprintf("%d. [%s] %s（城市：%s）\n", i+1, c.Index, c.Name, c.City))
+		sb.WriteString(fmt.Sprintf("%d. [id=%d, index=%s] %s（城市：%s）\n", i+1, c.ID, c.Index, c.Name, c.City))
 		if desc := firstNonEmpty(c.ShortDesc, c.LongDesc); desc != "" {
 			sb.WriteString(fmt.Sprintf("   說明：%s\n", truncateForPrompt(normalizePromptText(desc), 180)))
 		}
