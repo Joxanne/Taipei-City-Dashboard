@@ -83,6 +83,8 @@ func GetComponentChartData(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "success", "data": chartData})
+	} else if queryType == "custom" {
+		c.JSON(http.StatusOK, gin.H{"status": "success", "data": []any{}})
 	}
 }
 

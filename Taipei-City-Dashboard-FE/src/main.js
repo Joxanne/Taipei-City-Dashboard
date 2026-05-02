@@ -21,6 +21,7 @@ import { createPinia } from "pinia";
 import VueApexCharts from "vue3-apexcharts";
 import debounce from "lodash/debounce";
 import horizontalWheel from './directives/horizontalWheel';
+import clickOutside from './directives/clickOutside';
 
 const app = createApp(App);
 
@@ -45,4 +46,5 @@ pinia.use(({ options, store }) => {
 app.use(pinia);
 app.use(VueApexCharts);
 app.directive('horizontalWheel', horizontalWheel);
+app.directive('clickOutside', clickOutside);
 app.mount("#app");

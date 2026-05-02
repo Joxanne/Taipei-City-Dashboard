@@ -42,6 +42,7 @@ func ConfigureRoutes() {
 	configureChatLogRoutes()
 	configureAIRoutes()
 	configureIsochroneRoutes()
+	configureBusRoutes()
 }
 
 func configureAuthRoutes() {
@@ -215,6 +216,22 @@ func configureIsochroneRoutes() {
 	isoRoutes.Use(middleware.LimitTotalRequests(global.ComponentLimitTotalRequestsTimes, global.LimitRequestsDuration))
 	{
 		isoRoutes.GET("/", controllers.GetIsochrone)
+	}
+}
+
+func configureBusRoutes() {
+	busRoutes := RouterGroup.Group("/bus")
+	busRoutes.Use(middleware.LimitAPIRequests(global.ComponentLimitAPIRequestsTimes, global.LimitRequestsDuration))
+	busRoutes.Use(middleware.LimitTotalRequests(global.ComponentLimitTotalRequestsTimes, global.LimitRequestsDuration))
+	{
+		busRoutes.GET("/stops", controllers.GetBusStops)
+		busRoutes.GET("/lookup/cities", controllers.GetBusCities)
+		busRoutes.GET("/lookup/districts", controllers.GetBusDistricts)
+		busRoutes.GET("/lookup/routes", controllers.GetBusRoutesByDistrict)
+		busRoutes.GET("/lookup/stops", controllers.GetBusStopsLookup)
+		busRoutes.GET("/lookup/roads", controllers.GetBusRoadsByDistrict)
+		busRoutes.GET("/lookup/stops-by-road", controllers.GetBusStopsByRoad)
+		busRoutes.GET("/transfer", controllers.GetBusTransfer)
 	}
 }
 

@@ -24,4 +24,6 @@ export const chartTypes: chartType = {
 	MapLegend: "地圖圖例", // V
 	TextUnitChart: "文字數值圖", // V
 	IsochroneTool: "通勤圈分析", // V
+	BusRouteChart: "公車路線圖", // V
+	BusTransferChart: "公車轉乘查詢", // V
 };
