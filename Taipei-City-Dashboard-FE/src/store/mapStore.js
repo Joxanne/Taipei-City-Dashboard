@@ -11,7 +11,7 @@ https://docs.mapbox.com/mapbox-gl-js/guides/
 /* global gtag */
 import { ArcLayer } from "@deck.gl/layers";
 import { MapboxOverlay } from "@deck.gl/mapbox";
-import { distance, point } from "@turf/turf";
+import { booleanPointInPolygon, distance, point } from "@turf/turf";
 import axios from "axios";
 import Hls from "hls.js";
 import mapboxGl from "mapbox-gl";
@@ -20,7 +20,6 @@ import { defineStore } from "pinia";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import {
-	booleanPointInPolygon,
 	createApp,
 	defineComponent,
 	markRaw,
@@ -2824,9 +2823,6 @@ export const useMapStore = defineStore("map", {
 
 			this.isochroneState.isLoading = true;
 			try {
-				const geojson = await fetch(url).then((r) => r.json());
-				if (!geojson?.features?.length)
-					throw new Error("Isochrone API error");
 				const response = await fetch(url);
 				if (!response.ok) throw new Error(`HTTP ${response.status}`);
 				const geojson = await response.json();
