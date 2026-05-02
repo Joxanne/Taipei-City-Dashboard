@@ -12,11 +12,24 @@ import (
 )
 
 const (
-	defaultComponentSearchLimit = 8
+	defaultComponentSearchLimit = 3
 	maxComponentSearchLimit     = 15
-	vectorScoreThreshold        = 0.8
+	vectorScoreThreshold        = 0.6
 	rrfRankConstant             = 60.0
 )
+
+func init() {
+	MustRegister(
+		NewTool(
+			"search_components_hybrid",
+			"搜尋臺北城市儀表板中與用戶問題相關的資料視覺化元件。當用戶想了解特定城市議題或數據時使用此工具。",
+			SearchComponentsHybrid,
+		).
+			RequiredString("query", "從用戶輸入中萃取的搜尋關鍵字，用繁體中文描述主題。").
+			OptionalInteger("limit", "回傳的元件數量，預設 3，最多 10。").
+			Build(),
+	)
+}
 
 type searchComponentsArgs struct {
 	Query string `json:"query"`

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"strings"
 
 	"TaipeiCityDashboardBE/app/services/ai"
 	aiTools "TaipeiCityDashboardBE/app/services/ai/tools"
@@ -14,7 +15,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 )
 
-const componentAssistantSystemPrompt = "你是臺北城市儀表板的 AI 小幫手。請依用戶問題選擇合適工具：需要目前日期時間時使用 get_current_time；查詢臺北市或新北市指定年份的人口年齡結構時使用 get_population_summary；詢問城市數據、交通、環境、人口等主題並需要推薦儀表板元件時使用 search_components_hybrid。只引用工具實際回傳且明顯符合問題的資料，不要為了湊數量而把不相關結果說成相關；如果結果偏少，請直接說明目前找到的相關資料有限。回答請使用繁體中文，語氣友善專業。"
+const componentAssistantSystemPrompt = "你是臺北城市儀表板的 AI 小幫手。請依用戶問題選擇合適工具只引用工具實際回傳且明顯符合問題的資料，不要為了湊數量而把不相關結果說成相關。回答請使用繁體中文，語氣友善專業。"
 
 // AIChatInput matches the Request Schema in specification。https://docs.twcloud.ai/docs/user-guides/twcc/afs/api-and-parameters/api-parameter-information#模型說明
 type AIChatInput struct {
@@ -33,13 +34,13 @@ type AIChatInput struct {
 		} `json:"tool_calls,omitempty"`
 		ToolCallID string `json:"tool_call_id,omitempty"`
 	} `json:"messages" binding:"required,gt=0"`
-	MaxNewTokens     *int      `json:"max_new_tokens" binding:"omitempty,gt=0"`
-	Temperature      *float64  `json:"temperature" binding:"omitempty,gt=0"`
-	TopP             *float64  `json:"top_p" binding:"omitempty,gt=0,lte=1"`
-	TopK             *int      `json:"top_k" binding:"omitempty,gte=1,lte=100"`
-	FrequencePenalty *float64  `json:"frequence_penalty" binding:"omitempty,gt=0"`
-	StopSequences    []string  `json:"stop_sequences" binding:"omitempty,max=4"`
-	Seed             *int      `json:"seed" binding:"omitempty,gte=0"`
+	MaxNewTokens     *int     `json:"max_new_tokens" binding:"omitempty,gt=0"`
+	Temperature      *float64 `json:"temperature" binding:"omitempty,gt=0"`
+	TopP             *float64 `json:"top_p" binding:"omitempty,gt=0,lte=1"`
+	TopK             *int     `json:"top_k" binding:"omitempty,gte=1,lte=100"`
+	FrequencePenalty *float64 `json:"frequence_penalty" binding:"omitempty,gt=0"`
+	StopSequences    []string `json:"stop_sequences" binding:"omitempty,max=4"`
+	Seed             *int     `json:"seed" binding:"omitempty,gte=0"`
 	Tools            []struct {
 		Type     string `json:"type" binding:"required,eq=function"`
 		Function struct {
@@ -56,9 +57,9 @@ func ChatWithTWCC(c *gin.Context) {
 	var input AIChatInput
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"status": "error",
+			"status":     "error",
 			"error_code": "INVALID_REQUEST",
-			"message": err.Error(),
+			"message":    err.Error(),
 		})
 		return
 	}
@@ -106,9 +107,9 @@ func ChatWithTWCC(c *gin.Context) {
 		if err != nil {
 			if !c.Writer.Written() {
 				c.JSON(http.StatusInternalServerError, gin.H{
-					"status": "error",
+					"status":     "error",
 					"error_code": "AI_SERVICE_STREAM_ERROR",
-					"message": err.Error(),
+					"message":    err.Error(),
 				})
 			}
 		}
@@ -119,9 +120,9 @@ func ChatWithTWCC(c *gin.Context) {
 	logEntry, err := ai.ChatWithTWCC(c.Request.Context(), req, options...)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"status": "error",
+			"status":     "error",
 			"error_code": "AI_SERVICE_ERROR",
-			"message": err.Error(),
+			"message":    err.Error(),
 		})
 		return
 	}
@@ -129,8 +130,8 @@ func ChatWithTWCC(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"data": gin.H{
-			"session":     logEntry.SessionID,
-			"content":     logEntry.Answer,
+			"session": logEntry.SessionID,
+			"content": logEntry.Answer,
 			"usage": gin.H{
 				"input_tokens":  logEntry.InputTokens,
 				"output_tokens": logEntry.OutputTokens,
@@ -242,17 +243,23 @@ func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 	registeredTools := aiTools.RegisteredTools()
 	llmTools := make([]llms.Tool, 0, len(input.Tools)+len(registeredTools))
 	seenTools := make(map[string]struct{}, len(input.Tools)+len(registeredTools))
+	registeredByName := make(map[string]llms.Tool, len(registeredTools))
+	for _, tool := range registeredTools {
+		if tool.Function == nil || tool.Function.Name == "" {
+			continue
+		}
+		registeredByName[tool.Function.Name] = tool
+	}
 	for _, t := range input.Tools {
-		tool := llms.Tool{
-			Type: t.Type,
-			Function: &llms.FunctionDefinition{
-				Name:        t.Function.Name,
-				Description: t.Function.Description,
-				Parameters:  t.Function.Parameters,
-			},
+		if _, exists := seenTools[t.Function.Name]; exists {
+			continue
+		}
+		tool := normalizeRequestTool(t.Type, t.Function.Name, t.Function.Description, t.Function.Parameters, registeredByName[t.Function.Name])
+		if tool.Function == nil || tool.Function.Name == "" {
+			continue
 		}
 		llmTools = append(llmTools, tool)
-		seenTools[t.Function.Name] = struct{}{}
+		seenTools[tool.Function.Name] = struct{}{}
 	}
 	for _, tool := range registeredTools {
 		if tool.Function == nil || tool.Function.Name == "" {
@@ -274,4 +281,38 @@ func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 	}
 
 	return options
+}
+
+func normalizeRequestTool(toolType string, name string, description string, parameters interface{}, registered llms.Tool) llms.Tool {
+	if strings.TrimSpace(toolType) == "" {
+		toolType = "function"
+	}
+	tool := llms.Tool{
+		Type: toolType,
+		Function: &llms.FunctionDefinition{
+			Name:        name,
+			Description: description,
+			Parameters:  parameters,
+		},
+	}
+
+	if registered.Function != nil && registered.Function.Name == name {
+		if strings.TrimSpace(tool.Function.Description) == "" {
+			tool.Function.Description = registered.Function.Description
+		}
+		if tool.Function.Parameters == nil {
+			tool.Function.Parameters = registered.Function.Parameters
+		}
+	}
+	if strings.TrimSpace(tool.Function.Description) == "" {
+		tool.Function.Description = fmt.Sprintf("外部請求提供的工具 %s。", name)
+	}
+	if tool.Function.Parameters == nil {
+		tool.Function.Parameters = map[string]interface{}{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+		}
+	}
+
+	return tool
 }
