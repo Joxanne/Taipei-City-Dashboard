@@ -10,7 +10,11 @@ static_speeding_casualty_district.py - 雙北各行政區超速傷亡事故計�
 
 時間範圍：民國 112-114（三年總計），CLI 可調整
 
-⚠️ accident_count 語義警語：
+表 schema：每個 (city, district) 一列，分 a1_count（死亡）/ a2_count（受傷）兩欄。
+- 台北 a1_count/a2_count 都有值（依 `處理別-編號` 1=A1、2=A2 拆分）
+- 新北 a1_count 有值；a2_count = NULL（資料源僅 A1，無 A2 受傷統計）
+
+⚠️ 件數語義警語：
 - 台北：依事故 key dedup 後 COUNT BY district，數字精確
 - 新北：分局粒度資料 1:N 複製到所轄各區（PRECINCT_TO_DISTRICTS），
        全市直接 SUM 會高估，僅適合「單一行政區查詢」。
@@ -113,7 +117,7 @@ def crawl_tpe(years: list[int]) -> list[dict]:
 
 
 def aggregate_tpe(rows: list[dict]) -> list[dict]:
-    """事故粒度 dedup（不含座標）→ 篩超速 + 篩傷亡 → COUNT BY district"""
+    """事故粒度 dedup（不含座標）→ 篩超速 + 篩傷亡 → 依 處理別-編號 拆 A1/A2 → COUNT BY district"""
     print("[台北聚合] 分組中 ...")
     groups: dict[tuple, list[dict]] = {}
     for r in rows:
@@ -129,7 +133,8 @@ def aggregate_tpe(rows: list[dict]) -> list[dict]:
         key = (yr, mo, dy, hr, mn, qux, loc)
         groups.setdefault(key, []).append(r)
 
-    counts: dict[str, int] = defaultdict(int)
+    a1_counts: dict[str, int] = defaultdict(int)
+    a2_counts: dict[str, int] = defaultdict(int)
     kept = filtered = 0
     for _key, members in groups.items():
         cause_codes = {(m.get("肇因碼-個別") or "").strip() for m in members}
@@ -154,13 +159,30 @@ def aggregate_tpe(rows: list[dict]) -> list[dict]:
             filtered += 1
             continue
 
-        counts[district] += 1
+        # 處理別-編號: 1=A1（死亡）, 2=A2（受傷）
+        case_type = (first.get("處理別-編號") or "").strip()
+        if case_type == "1":
+            a1_counts[district] += 1
+        elif case_type == "2":
+            a2_counts[district] += 1
+        else:
+            filtered += 1
+            continue
         kept += 1
 
-    print(f"[台北聚合] 保留 {kept} 件，過濾 {filtered} 件，分布到 {len(counts)} 區")
+    all_districts = sorted(set(a1_counts.keys()) | set(a2_counts.keys()))
+    print(
+        f"[台北聚合] 保留 {kept} 件（A1 {sum(a1_counts.values())}、A2 {sum(a2_counts.values())}）；"
+        f"過濾 {filtered} 件，分布到 {len(all_districts)} 區"
+    )
     return [
-        {"city": "臺北市", "district": d, "accident_count": c}
-        for d, c in counts.items()
+        {
+            "city": "臺北市",
+            "district": d,
+            "a1_count": a1_counts.get(d, 0),
+            "a2_count": a2_counts.get(d, 0),
+        }
+        for d in all_districts
     ]
 
 
@@ -225,7 +247,7 @@ def aggregate_ntpc(rows: list[dict], years: list[int]) -> list[dict]:
 
     print(f"[新北聚合] 展開到 {len(district_counts)} 區；無對應分局 {len(unmapped)} 個")
     return [
-        {"city": "新北市", "district": d, "accident_count": c}
+        {"city": "新北市", "district": d, "a1_count": c, "a2_count": None}
         for d, c in district_counts.items()
     ]
 
@@ -241,7 +263,8 @@ def save_to_postgres(records: list[dict]) -> None:
             ogc_fid          SERIAL PRIMARY KEY,
             city             VARCHAR(20)  NOT NULL,
             district         VARCHAR(20)  NOT NULL,
-            accident_count   INTEGER      NOT NULL,
+            a1_count         INTEGER,
+            a2_count         INTEGER,
             data_time        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             _ctime           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             _mtime           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -255,9 +278,9 @@ def save_to_postgres(records: list[dict]) -> None:
         cur,
         """
         INSERT INTO public.speeding_casualty_district_tpe (
-            city, district, accident_count
+            city, district, a1_count, a2_count
         ) VALUES (
-            %(city)s, %(district)s, %(accident_count)s
+            %(city)s, %(district)s, %(a1_count)s, %(a2_count)s
         )
         """,
         records,
