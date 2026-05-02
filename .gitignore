@@ -79,3 +79,8 @@ CLAUDE.md
 .claude/settings.local.json
 .github/instructions/taipei-city-dashboard-style.instructions.md
 MEMORY.md
+DataPreprocess/
+*.txt
+.claude/
+.codex/
+.copilot/
