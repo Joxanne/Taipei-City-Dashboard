@@ -1,0 +1,9 @@
+-- =============================================================================
+-- New_dashboard/patch_manager.sql — 已拆分至各組件子目錄
+--
+-- 各組件的 SQL patch 請至對應子目錄執行：
+--   bus_stop_by_district/patch_manager.sql
+--
+-- 在 pgAdmin (http://localhost:8889) 開啟 dashboardmanager 資料庫後，
+-- 直接開啟對應子目錄的 patch_manager.sql 貼上執行即可。
+-- =============================================================================
