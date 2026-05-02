@@ -142,6 +142,47 @@ func GetBusStopsByRoad(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": stops})
 }
 
+// GetBusStopsByDistrict returns stops under a district.
+// GET /api/v1/bus/lookup/stops-by-district?city=taipei&district=中正區
+func GetBusStopsByDistrict(c *gin.Context) {
+	cityParam := c.Query("city")
+	district := c.Query("district")
+	if cityParam == "" || district == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "city and district parameters are required"})
+		return
+	}
+
+	stops, err := models.GetBusStopsByDistrict(cityParam, district)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": stops})
+}
+
+// GetBusTopDirectStops returns the stop pair with the most direct routes.
+// GET /api/v1/bus/lookup/top-direct-stops?city=taipei
+func GetBusTopDirectStops(c *gin.Context) {
+	cityParam := c.Query("city")
+	if cityParam == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "city parameter is required"})
+		return
+	}
+
+	pair, err := models.GetTopDirectStopPair(cityParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if pair.FromStopLocationID == 0 || pair.FromStopLocationID == pair.ToStopLocationID {
+		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "no valid stop pair found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": pair})
+}
+
 // GetBusTransfer returns direct routes and transfer routes between two stops.
 // GET /api/v1/bus/transfer?city=taipei&from_stop=123&to_stop=456&max_transfers=1
 func GetBusTransfer(c *gin.Context) {

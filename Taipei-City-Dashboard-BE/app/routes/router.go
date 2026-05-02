@@ -231,6 +231,8 @@ func configureBusRoutes() {
 		busRoutes.GET("/lookup/stops", controllers.GetBusStopsLookup)
 		busRoutes.GET("/lookup/roads", controllers.GetBusRoadsByDistrict)
 		busRoutes.GET("/lookup/stops-by-road", controllers.GetBusStopsByRoad)
+		busRoutes.GET("/lookup/stops-by-district", controllers.GetBusStopsByDistrict)
+		busRoutes.GET("/lookup/top-direct-stops", controllers.GetBusTopDirectStops)
 		busRoutes.GET("/transfer", controllers.GetBusTransfer)
 	}
 }

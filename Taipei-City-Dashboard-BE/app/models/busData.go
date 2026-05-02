@@ -33,6 +33,16 @@ type BusTransferRoute struct {
 	TransferStop BusStopOption `gorm:"embedded"               json:"transfer_stop"`
 }
 
+type BusTopDirectStopPair struct {
+	RouteCount         int    `gorm:"column:route_count"           json:"route_count"`
+	FromStopLocationID int    `gorm:"column:from_stop_location_id" json:"from_stop_location_id"`
+	FromStopName       string `gorm:"column:from_stop_name"        json:"from_stop_name"`
+	FromDistrict       string `gorm:"column:from_district"         json:"from_district"`
+	ToStopLocationID   int    `gorm:"column:to_stop_location_id"   json:"to_stop_location_id"`
+	ToStopName         string `gorm:"column:to_stop_name"          json:"to_stop_name"`
+	ToDistrict         string `gorm:"column:to_district"           json:"to_district"`
+}
+
 type BusRoadOption struct {
 	RoadName string `json:"road_name"`
 }
@@ -65,17 +75,8 @@ func extractRoadName(stopName string) string {
 	return stopName
 }
 
-// GetBusStops returns go-direction stops for a route, ordered by sequence.
-// cityParam: "taipei" → 臺北市 only; anything else → both cities.
 func GetBusStops(routeName, cityParam string) ([]BusStop, error) {
-	var cityCond string
-	if cityParam == "taipei" {
-		cityCond = "'臺北市'"
-	} else {
-		cityCond = "'臺北市', '新北市'"
-	}
-
-	query := fmt.Sprintf(`
+	query := `
 		SELECT brs.stop_seq,
 		       bs.stop_name,
 		       COALESCE(bs.district, '') AS district,
@@ -84,15 +85,12 @@ func GetBusStops(routeName, cityParam string) ([]BusStop, error) {
 		FROM   public.bus_route_tpe        br
 		JOIN   public.bus_route_stops_tpe  brs
 		       ON  br.route_id = brs.route_id
-		       AND br.city     = brs.city
 		JOIN   public.bus_stop_tpe         bs
 		       ON  brs.stop_location_id = bs.stop_location_id
-		       AND brs.city             = bs.city
 		WHERE  br.route_name = ?
-		  AND  br.city IN (%s)
 		  AND  brs.go_back = 0
 		ORDER  BY brs.stop_seq
-	`, cityCond)
+	`
 
 	var stops []BusStop
 	err := DBDashboard.Raw(query, routeName).Scan(&stops).Error
@@ -108,7 +106,7 @@ func GetBusDistricts(cityParam string) ([]string, error) {
 	query := `
 		SELECT DISTINCT COALESCE(district, '') AS district
 		FROM public.bus_stop_tpe
-		WHERE city = ?
+		WHERE geo_city = ?
 		  AND district IS NOT NULL
 		  AND district <> ''
 		ORDER BY district
@@ -130,11 +128,9 @@ func GetBusRoutesByDistrict(cityParam, district string) ([]BusRouteSimple, error
 		FROM public.bus_route_tpe br
 		JOIN public.bus_route_stops_tpe brs
 		  ON br.route_id = brs.route_id
-		 AND br.city = brs.city
 		JOIN public.bus_stop_tpe bs
 		  ON brs.stop_location_id = bs.stop_location_id
-		 AND brs.city = bs.city
-		WHERE br.city = ?
+		WHERE bs.geo_city = ?
 		  AND bs.district = ?
 		ORDER BY br.route_name
 	`
@@ -160,18 +156,16 @@ func GetBusStopsByRouteAndDistrict(cityParam, district, routeName string) ([]Bus
 		FROM public.bus_route_tpe br
 		JOIN public.bus_route_stops_tpe brs
 		  ON br.route_id = brs.route_id
-		 AND br.city = brs.city
 		JOIN public.bus_stop_tpe bs
 		  ON brs.stop_location_id = bs.stop_location_id
-		 AND brs.city = bs.city
-		WHERE br.city = ?
-		  AND br.route_name = ?
+		WHERE br.route_name = ?
 		  AND bs.district = ?
+		  AND bs.geo_city = ?
 		ORDER BY bs.stop_name
 	`
 
 	var stops []BusStopOption
-	err = DBDashboard.Raw(query, city, routeName, district).Scan(&stops).Error
+	err = DBDashboard.Raw(query, routeName, district, city).Scan(&stops).Error
 	return stops, err
 }
 
@@ -184,7 +178,7 @@ func GetBusRoadsByDistrict(cityParam, district string) ([]BusRoadOption, error) 
 	query := `
 		SELECT COALESCE(stop_name, '') AS stop_name
 		FROM public.bus_stop_tpe
-		WHERE city = ?
+		WHERE geo_city = ?
 		  AND district = ?
 		  AND stop_name IS NOT NULL
 		  AND stop_name <> ''
@@ -231,7 +225,7 @@ func GetBusStopsByRoad(cityParam, district, roadName string) ([]BusStopOption, e
 		  COALESCE(bs.latitude, 0) AS latitude,
 		  COALESCE(bs.longitude, 0) AS longitude
 		FROM public.bus_stop_tpe bs
-		WHERE bs.city = ?
+		WHERE bs.geo_city = ?
 		  AND bs.district = ?
 		  AND bs.stop_name IS NOT NULL
 		  AND bs.stop_name <> ''
@@ -254,8 +248,97 @@ func GetBusStopsByRoad(cityParam, district, roadName string) ([]BusStopOption, e
 	return filtered, nil
 }
 
+func GetBusStopsByDistrict(cityParam, district string) ([]BusStopOption, error) {
+	city, err := normalizeCityParam(cityParam)
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+		SELECT
+		  bs.stop_location_id,
+		  bs.stop_name,
+		  COALESCE(bs.district, '') AS district,
+		  COALESCE(bs.latitude, 0) AS latitude,
+		  COALESCE(bs.longitude, 0) AS longitude
+		FROM public.bus_stop_tpe bs
+		WHERE bs.geo_city = ?
+		  AND bs.district = ?
+		  AND bs.stop_name IS NOT NULL
+		  AND bs.stop_name <> ''
+		ORDER BY bs.stop_name
+	`
+
+	var stops []BusStopOption
+	err = DBDashboard.Raw(query, city, district).Scan(&stops).Error
+	return stops, err
+}
+
+func GetTopDirectStopPair(cityParam string) (BusTopDirectStopPair, error) {
+	city, err := normalizeCityParam(cityParam)
+	if err != nil {
+		return BusTopDirectStopPair{}, err
+	}
+
+	query := `
+		WITH stop_routes AS (
+			SELECT br.route_id, bs.stop_name
+			FROM public.bus_route_tpe br
+			JOIN public.bus_route_stops_tpe brs
+			  ON br.route_id = brs.route_id
+			JOIN public.bus_stop_tpe bs
+			  ON brs.stop_location_id = bs.stop_location_id
+			WHERE bs.geo_city = ?
+			  AND bs.stop_name IS NOT NULL
+			  AND bs.stop_name <> ''
+		),
+		pair_counts AS (
+			SELECT
+			  sr1.stop_name AS from_stop_name,
+			  sr2.stop_name AS to_stop_name,
+			  COUNT(DISTINCT sr1.route_id) AS route_count
+			FROM stop_routes sr1
+			JOIN stop_routes sr2
+			  ON sr1.route_id = sr2.route_id
+			 AND sr1.stop_name < sr2.stop_name
+			GROUP BY sr1.stop_name, sr2.stop_name
+		),
+		stop_lookup AS (
+			SELECT
+			  stop_name,
+			  MIN(stop_location_id) AS stop_location_id,
+			  MIN(COALESCE(district, '')) AS district
+			FROM public.bus_stop_tpe
+			WHERE geo_city = ?
+			GROUP BY stop_name
+		),
+		top_pair AS (
+			SELECT *
+			FROM pair_counts
+			ORDER BY route_count DESC
+			LIMIT 1
+		)
+		SELECT
+		  tp.route_count,
+		  f.stop_location_id AS from_stop_location_id,
+		  f.stop_name AS from_stop_name,
+		  f.district AS from_district,
+		  t.stop_location_id AS to_stop_location_id,
+		  t.stop_name AS to_stop_name,
+		  t.district AS to_district
+		FROM top_pair tp
+		JOIN stop_lookup f ON f.stop_name = tp.from_stop_name
+		JOIN stop_lookup t ON t.stop_name = tp.to_stop_name
+		WHERE f.stop_location_id <> t.stop_location_id
+	`
+
+	var pair BusTopDirectStopPair
+	err = DBDashboard.Raw(query, city, city).Scan(&pair).Error
+	return pair, err
+}
+
 func GetDirectRoutesByStops(fromCityParam, toCityParam string, fromStopLocationID, toStopLocationID int) ([]BusRouteSimple, error) {
-	_, err := normalizeCityParam(fromCityParam)
+	fromCity, err := normalizeCityParam(fromCityParam)
 	if err != nil {
 		return nil, err
 	}
@@ -264,68 +347,64 @@ func GetDirectRoutesByStops(fromCityParam, toCityParam string, fromStopLocationI
 		return nil, err
 	}
 
-	// stop_location_id is city-scoped; resolve the destination stop's name first,
-	// then match by name across all city namespaces within each route.
 	query := `
 		SELECT DISTINCT br.route_name
 		FROM public.bus_route_tpe br
-		JOIN public.bus_route_stops_tpe brs1
-		  ON br.route_id = brs1.route_id
-		 AND br.city = brs1.city
-		JOIN public.bus_route_stops_tpe brs2
-		  ON br.route_id = brs2.route_id
-		JOIN public.bus_stop_tpe bs2
-		  ON brs2.stop_location_id = bs2.stop_location_id
-		 AND brs2.city = bs2.city
-		WHERE brs1.stop_location_id = ?
+		JOIN public.bus_route_stops_tpe brs1 ON br.route_id = brs1.route_id
+		JOIN public.bus_stop_tpe bs1 ON brs1.stop_location_id = bs1.stop_location_id
+		JOIN public.bus_route_stops_tpe brs2 ON br.route_id = brs2.route_id
+		JOIN public.bus_stop_tpe bs2 ON brs2.stop_location_id = bs2.stop_location_id
+		WHERE bs1.geo_city = ?
+		  AND bs1.stop_name = (
+		    SELECT stop_name FROM public.bus_stop_tpe
+		    WHERE stop_location_id = ? AND geo_city = ?
+		    LIMIT 1
+		  )
+		  AND bs2.geo_city = ?
 		  AND bs2.stop_name = (
 		    SELECT stop_name FROM public.bus_stop_tpe
-		    WHERE stop_location_id = ? AND city = ?
+		    WHERE stop_location_id = ? AND geo_city = ?
+		    LIMIT 1
 		  )
 		ORDER BY br.route_name
 	`
 
 	var routes []BusRouteSimple
-	err = DBDashboard.Raw(query, fromStopLocationID, toStopLocationID, toCity).Scan(&routes).Error
+	err = DBDashboard.Raw(query, fromCity, fromStopLocationID, fromCity, toCity, toStopLocationID, toCity).Scan(&routes).Error
 	return routes, err
 }
 
 func GetTransferRoutesByStops(cityParam string, fromStopLocationID, toStopLocationID int) ([]BusTransferRoute, error) {
-	_, err := normalizeCityParam(cityParam)
-	if err != nil {
-		return nil, err
+	if _, e := normalizeCityParam(cityParam); e != nil {
+		return nil, e
 	}
 
 	query := `
 		WITH route_a AS (
-			SELECT DISTINCT br.route_id, br.route_name, br.city
+			SELECT DISTINCT br.route_id, br.route_name
 			FROM public.bus_route_tpe br
 			JOIN public.bus_route_stops_tpe brs
 			  ON br.route_id = brs.route_id
-			 AND br.city = brs.city
 			WHERE brs.stop_location_id = ?
 		),
 		route_b AS (
-			SELECT DISTINCT br.route_id, br.route_name, br.city
+			SELECT DISTINCT br.route_id, br.route_name
 			FROM public.bus_route_tpe br
 			JOIN public.bus_route_stops_tpe brs
 			  ON br.route_id = brs.route_id
-			 AND br.city = brs.city
 			WHERE brs.stop_location_id = ?
 		),
 		route_a_stops AS (
-			SELECT ra.route_id, ra.route_name, ra.city, brs.stop_location_id
+			SELECT ra.route_id, ra.route_name, brs.stop_location_id
 			FROM route_a ra
 			JOIN public.bus_route_stops_tpe brs
 			  ON ra.route_id = brs.route_id
-			 AND ra.city = brs.city
 		),
 		route_b_stops AS (
-			SELECT rb.route_id, rb.route_name, rb.city, brs.stop_location_id
+			SELECT rb.route_id, rb.route_name, brs.stop_location_id
 			FROM route_b rb
 			JOIN public.bus_route_stops_tpe brs
 			  ON rb.route_id = brs.route_id
-			 AND rb.city = brs.city
 		)
 		SELECT DISTINCT
 		  ra.route_name AS route_a,
@@ -346,7 +425,7 @@ func GetTransferRoutesByStops(cityParam string, fromStopLocationID, toStopLocati
 	`
 
 	var routes []BusTransferRoute
-	err = DBDashboard.Raw(
+	err := DBDashboard.Raw(
 		query,
 		fromStopLocationID,
 		toStopLocationID,

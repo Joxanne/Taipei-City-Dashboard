@@ -19,7 +19,7 @@ const dropdownStyle = ref({});
 const filteredOptions = computed(() => {
 	if (!search.value) return props.options;
 	return props.options.filter((opt) =>
-		opt.label.toLowerCase().includes(search.value.toLowerCase())
+		opt.label.toLowerCase().includes(search.value.toLowerCase()),
 	);
 });
 
@@ -31,14 +31,27 @@ const displayValue = computed(() => {
 function updatePosition() {
 	if (!selectorRef.value || !isOpen.value) return;
 	const rect = selectorRef.value.getBoundingClientRect();
-	
+	const spaceBelow = window.innerHeight - rect.bottom - 8;
+	const spaceAbove = rect.top - 8;
+	const openUp = spaceBelow < 200 && spaceAbove > spaceBelow;
+	const maxHeight = Math.min(
+		280,
+		Math.max(160, Math.max(spaceBelow, spaceAbove)),
+	);
+
 	dropdownStyle.value = {
 		position: "fixed",
-		top: `${rect.bottom + 4}px`,
 		left: `${rect.left}px`,
 		width: `${rect.width}px`,
 		zIndex: 99999,
+		maxHeight: `${maxHeight}px`,
 	};
+
+	if (openUp) {
+		dropdownStyle.value.top = `${Math.max(8, rect.top - maxHeight - 4)}px`;
+	} else {
+		dropdownStyle.value.top = `${rect.bottom + 4}px`;
+	}
 }
 
 function toggleDropdown() {
@@ -58,7 +71,10 @@ function selectOption(opt) {
 }
 
 function closeDropdown(e) {
-	if (selectorRef.value?.contains(e.target) || dropdownRef.value?.contains(e.target)) {
+	if (
+		selectorRef.value?.contains(e.target) ||
+		dropdownRef.value?.contains(e.target)
+	) {
 		return;
 	}
 	isOpen.value = false;
@@ -80,13 +96,27 @@ onUnmounted(() => {
 <template>
 	<div class="searchable-select" :class="{ disabled }" ref="selectorRef">
 		<div class="ss-display" @click="toggleDropdown">
-			<span class="ss-value" :class="{ 'is-placeholder': !modelValue }">{{ displayValue }}</span>
-			<span class="material-icons ss-arrow">{{ isOpen ? 'expand_less' : 'expand_more' }}</span>
+			<span class="ss-value" :class="{ 'is-placeholder': !modelValue }">{{
+				displayValue
+			}}</span>
+			<span class="material-icons ss-arrow">{{
+				isOpen ? "expand_less" : "expand_more"
+			}}</span>
 		</div>
 
 		<Teleport to="body">
-			<div v-if="isOpen" ref="dropdownRef" class="ss-dropdown" :style="dropdownStyle">
-				<input v-model="search" class="ss-search" placeholder="搜尋..." @click.stop />
+			<div
+				v-if="isOpen"
+				ref="dropdownRef"
+				class="ss-dropdown"
+				:style="dropdownStyle"
+			>
+				<input
+					v-model="search"
+					class="ss-search"
+					placeholder="搜尋..."
+					@click.stop
+				/>
 				<div class="ss-list">
 					<div
 						v-for="opt in filteredOptions"
@@ -97,7 +127,9 @@ onUnmounted(() => {
 					>
 						{{ opt.label }}
 					</div>
-					<div v-if="!filteredOptions.length" class="ss-empty">無符合項目</div>
+					<div v-if="!filteredOptions.length" class="ss-empty">
+						無符合項目
+					</div>
 				</div>
 			</div>
 		</Teleport>
@@ -146,13 +178,14 @@ onUnmounted(() => {
 <style>
 /* Teleported styles */
 .ss-dropdown {
+	position: fixed;
 	background: #1e2a38;
 	border: 1px solid #47596e;
 	border-radius: 6px;
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 	display: flex;
 	flex-direction: column;
-	max-height: 250px;
+	overflow: hidden;
 }
 .ss-search {
 	padding: 8px 12px;
@@ -169,6 +202,8 @@ onUnmounted(() => {
 .ss-list {
 	flex: 1;
 	overflow-y: auto;
+	min-height: 0;
+	padding-bottom: 8px;
 }
 .ss-item {
 	padding: 8px 12px;

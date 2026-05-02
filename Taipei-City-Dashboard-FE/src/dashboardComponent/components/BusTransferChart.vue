@@ -11,26 +11,67 @@ const props = defineProps([
 ]);
 
 const cities = ref([]);
-const maxTransfers = ref(1);
+const maxTransfers = ref(0);
 const resultLoading = ref(false);
 const resultError = ref("");
 const directRoutes = ref([]);
 const transferRoutes = ref([]);
-const showSql = ref(false);
+const expandedTransfers = reactive({});
 
 const validDistricts = {
-	taipei: ["中正區", "大同區", "中山區", "松山區", "大安區", "萬華區", "信義區", "士林區", "北投區", "內湖區", "南港區", "文山區"],
-	newtaipei: ["板橋區", "三重區", "中和區", "永和區", "新莊區", "新店區", "樹林區", "鶯歌區", "三峽區", "淡水區", "汐止區", "瑞芳區", "土城區", "蘆洲區", "五股區", "泰山區", "林口區", "深坑區", "石碇區", "坪林區", "三芝區", "石門區", "八里區", "平溪區", "雙溪區", "貢寮區", "金山區", "萬里區", "烏來區"]
+	taipei: [
+		"中正區",
+		"大同區",
+		"中山區",
+		"松山區",
+		"大安區",
+		"萬華區",
+		"信義區",
+		"士林區",
+		"北投區",
+		"內湖區",
+		"南港區",
+		"文山區",
+	],
+	newtaipei: [
+		"板橋區",
+		"三重區",
+		"中和區",
+		"永和區",
+		"新莊區",
+		"新店區",
+		"樹林區",
+		"鶯歌區",
+		"三峽區",
+		"淡水區",
+		"汐止區",
+		"瑞芳區",
+		"土城區",
+		"蘆洲區",
+		"五股區",
+		"泰山區",
+		"林口區",
+		"深坑區",
+		"石碇區",
+		"坪林區",
+		"三芝區",
+		"石門區",
+		"八里區",
+		"平溪區",
+		"雙溪區",
+		"貢寮區",
+		"金山區",
+		"萬里區",
+		"烏來區",
+	],
 };
 
 function createSelectionState() {
 	return reactive({
 		city: "",
 		district: "",
-		road: "",
 		stopId: "",
 		districts: [],
-		roads: [],
 		stops: [],
 		loading: false,
 	});
@@ -43,16 +84,15 @@ const canSearch = computed(
 	() => fromState.stopId && toState.stopId && fromState.city && toState.city,
 );
 
-function resetRoutesAndStops(state) {
-	state.road = "";
-	state.stopId = "";
-	state.roads = [];
-	state.stops = [];
-}
-
 function resetStops(state) {
 	state.stopId = "";
 	state.stops = [];
+}
+
+function resetDistrictAndStops(state) {
+	state.district = "";
+	state.districts = [];
+	resetStops(state);
 }
 
 async function fetchCities() {
@@ -72,7 +112,9 @@ async function fetchDistricts(state) {
 		});
 		let rawDistricts = res.data.data ?? [];
 		if (validDistricts[state.city]) {
-			rawDistricts = rawDistricts.filter(d => validDistricts[state.city].includes(d));
+			rawDistricts = rawDistricts.filter((d) =>
+				validDistricts[state.city].includes(d),
+			);
 		}
 		state.districts = rawDistricts;
 	} catch {
@@ -82,39 +124,23 @@ async function fetchDistricts(state) {
 	}
 }
 
-async function fetchRoads(state) {
-	state.loading = true;
-	try {
-		const res = await http.get("/bus/lookup/roads", {
-			params: { city: state.city, district: state.district },
-		});
-		state.roads = res.data.data ?? [];
-	} catch {
-		state.roads = [];
-	} finally {
-		state.loading = false;
-	}
-}
-
 async function fetchStops(state) {
 	state.loading = true;
 	try {
-		const res = await http.get("/bus/lookup/stops-by-road", {
+		const res = await http.get("/bus/lookup/stops-by-district", {
 			params: {
 				city: state.city,
 				district: state.district,
-				road: state.road,
 			},
 		});
-		
+
 		const rawStops = res.data.data ?? [];
 		const seen = new Set();
-		state.stops = rawStops.filter(s => {
+		state.stops = rawStops.filter((s) => {
 			if (seen.has(s.stop_name)) return false;
 			seen.add(s.stop_name);
 			return true;
 		});
-
 	} catch {
 		state.stops = [];
 	} finally {
@@ -139,6 +165,7 @@ async function fetchTransfers() {
 		const res = await http.get("/bus/transfer", {
 			params: {
 				city: fromState.city,
+				to_city: toState.city,
 				from_stop: fromState.stopId,
 				to_stop: toState.stopId,
 				max_transfers: maxTransfers.value,
@@ -164,95 +191,72 @@ function routeColor(routeName) {
 	return `hsl(${hue}, 70%, 55%)`;
 }
 
-const resultCombos = computed(() => {
-	const combos = [];
-	for (const route of directRoutes.value) {
-		if (route?.route_name) {
-			combos.push(`搭${route.route_name}可直達`);
+const transferGroups = computed(() => {
+	const groupMap = new Map();
+	for (const item of transferRoutes.value) {
+		if (!item?.route_a || !item?.route_b) continue;
+		const key = `${item.route_a}__${item.route_b}`;
+		if (!groupMap.has(key)) {
+			groupMap.set(key, {
+				key,
+				route_a: item.route_a,
+				route_b: item.route_b,
+				stops: [],
+				seenStops: new Set(),
+			});
+		}
+		const group = groupMap.get(key);
+		const stop = item.transfer_stop;
+		const stopKey = stop?.stop_location_id ?? stop?.stop_name;
+		if (stopKey && !group.seenStops.has(stopKey)) {
+			group.seenStops.add(stopKey);
+			group.stops.push(stop);
 		}
 	}
-	for (const item of transferRoutes.value) {
-		if (item?.route_a && item?.route_b) {
-			combos.push(`搭${item.route_a}轉${item.route_b}可抵達`);
+	const groups = Array.from(groupMap.values());
+	for (const group of groups) {
+		delete group.seenStops;
+	}
+	return groups;
+});
+
+const resultCombos = computed(() => {
+	const combos = [];
+	if (maxTransfers.value === 0) {
+		for (const route of directRoutes.value.slice(0, 6)) {
+			if (route?.route_name) {
+				combos.push({
+					key: `direct-${route.route_name}`,
+					text: `搭${route.route_name}可直達`,
+					type: "direct",
+					title: "",
+				});
+			}
+		}
+	} else if (maxTransfers.value === 1) {
+		for (const group of transferGroups.value.slice(0, 6)) {
+			const stopNames = group.stops.map(s => s.stop_name).join("、");
+			combos.push({
+				key: `transfer-${group.key}`,
+				text: `搭${group.route_a}轉${group.route_b}可抵達`,
+				type: "transfer",
+				title: `可轉乘站：${stopNames}`,
+			});
 		}
 	}
 	return combos;
 });
 
 const fromStopName = computed(() => {
-	const s = fromState.stops.find(s => s.stop_location_id === fromState.stopId);
+	const s = fromState.stops.find(
+		(s) => s.stop_location_id === fromState.stopId,
+	);
 	return s?.stop_name ?? fromState.stopId;
 });
 
 const toStopName = computed(() => {
-	const s = toState.stops.find(s => s.stop_location_id === toState.stopId);
+	const s = toState.stops.find((s) => s.stop_location_id === toState.stopId);
 	return s?.stop_name ?? toState.stopId;
-});
-
-const sqlPreview = computed(() => {
-	if (!canSearch.value) return "";
-
-	const directSql = `-- 直達查詢
-SELECT DISTINCT br.route_name
-FROM public.bus_route_tpe br
-JOIN public.bus_route_stops_tpe brs1
-  ON br.route_id = brs1.route_id
- AND br.city = brs1.city
-JOIN public.bus_route_stops_tpe brs2
-  ON br.route_id = brs2.route_id
-JOIN public.bus_stop_tpe bs2
-  ON brs2.stop_location_id = bs2.stop_location_id
- AND brs2.city = bs2.city
-WHERE brs1.stop_location_id = ${fromState.stopId}
-  AND bs2.stop_name = '${toStopName.value}'
-ORDER BY br.route_name;`;
-
-	if (maxTransfers.value === 0) return directSql;
-
-	const transferSql = `
-
--- 一次轉乘查詢
-WITH route_a AS (
-  SELECT DISTINCT br.route_id, br.route_name, br.city
-  FROM public.bus_route_tpe br
-  JOIN public.bus_route_stops_tpe brs
-    ON br.route_id = brs.route_id AND br.city = brs.city
-  WHERE brs.stop_location_id = ${fromState.stopId}
-),
-route_b AS (
-  SELECT DISTINCT br.route_id, br.route_name, br.city
-  FROM public.bus_route_tpe br
-  JOIN public.bus_route_stops_tpe brs
-    ON br.route_id = brs.route_id AND br.city = brs.city
-  WHERE brs.stop_location_id = ${toState.stopId}
-),
-route_a_stops AS (
-  SELECT ra.route_id, ra.route_name, ra.city, brs.stop_location_id
-  FROM route_a ra
-  JOIN public.bus_route_stops_tpe brs
-    ON ra.route_id = brs.route_id AND ra.city = brs.city
-),
-route_b_stops AS (
-  SELECT rb.route_id, rb.route_name, rb.city, brs.stop_location_id
-  FROM route_b rb
-  JOIN public.bus_route_stops_tpe brs
-    ON rb.route_id = brs.route_id AND rb.city = brs.city
-)
-SELECT DISTINCT
-  ra.route_name AS route_a,
-  rb.route_name AS route_b,
-  bs.stop_name,
-  bs.district
-FROM route_a_stops ra
-JOIN route_b_stops rb
-  ON ra.stop_location_id = rb.stop_location_id
-JOIN public.bus_stop_tpe bs
-  ON bs.stop_location_id = ra.stop_location_id
-WHERE ra.route_id <> rb.route_id
-  AND ra.stop_location_id NOT IN (${fromState.stopId}, ${toState.stopId})
-ORDER BY route_a, route_b, bs.stop_name;`;
-
-	return directSql + transferSql;
 });
 
 function resolveDefaultCity() {
@@ -270,12 +274,47 @@ function applyDefaultCity() {
 	if (!toState.city) toState.city = defaultCity;
 }
 
+async function fetchTopDirectStops(city) {
+	try {
+		const res = await http.get("/bus/lookup/top-direct-stops", {
+			params: { city },
+		});
+		return res.data.data ?? null;
+	} catch {
+		return null;
+	}
+}
+
+async function applyTopDirectStops() {
+	const defaultCity = resolveDefaultCity();
+	const fallbackCity = cities.value?.[0]?.value;
+	const city = defaultCity || fallbackCity;
+	if (!city) return;
+
+	const topPair = await fetchTopDirectStops(city);
+	if (!topPair?.from_stop_location_id || !topPair?.to_stop_location_id) {
+		applyDefaultCity();
+		return;
+	}
+
+	fromState.city = city;
+	toState.city = city;
+
+	await Promise.all([fetchDistricts(fromState), fetchDistricts(toState)]);
+
+	fromState.district = topPair.from_district || "";
+	toState.district = topPair.to_district || "";
+
+	await Promise.all([fetchStops(fromState), fetchStops(toState)]);
+
+	fromState.stopId = topPair.from_stop_location_id;
+	toState.stopId = topPair.to_stop_location_id;
+}
+
 watch(
 	() => fromState.city,
 	async (next) => {
-		resetRoutesAndStops(fromState);
-		fromState.district = "";
-		fromState.districts = [];
+		resetDistrictAndStops(fromState);
 		if (next) await fetchDistricts(fromState);
 	},
 );
@@ -283,9 +322,7 @@ watch(
 watch(
 	() => toState.city,
 	async (next) => {
-		resetRoutesAndStops(toState);
-		toState.district = "";
-		toState.districts = [];
+		resetDistrictAndStops(toState);
 		if (next) await fetchDistricts(toState);
 	},
 );
@@ -293,36 +330,16 @@ watch(
 watch(
 	() => fromState.district,
 	async (next) => {
-		resetRoutesAndStops(fromState);
-		if (next && fromState.city) await fetchRoads(fromState);
+		resetStops(fromState);
+		if (next && fromState.city) await fetchStops(fromState);
 	},
 );
 
 watch(
 	() => toState.district,
 	async (next) => {
-		resetRoutesAndStops(toState);
-		if (next && toState.city) await fetchRoads(toState);
-	},
-);
-
-watch(
-	() => fromState.road,
-	async (next) => {
-		resetStops(fromState);
-		if (next && fromState.city && fromState.district) {
-			await fetchStops(fromState);
-		}
-	},
-);
-
-watch(
-	() => toState.road,
-	async (next) => {
 		resetStops(toState);
-		if (next && toState.city && toState.district) {
-			await fetchStops(toState);
-		}
+		if (next && toState.city) await fetchStops(toState);
 	},
 );
 
@@ -335,61 +352,105 @@ watch(
 
 onMounted(() => {
 	fetchCities().finally(() => {
-		applyDefaultCity();
+		applyTopDirectStops();
 	});
 });
 
 watch(
 	() => props.activeCity,
 	() => {
-		applyDefaultCity();
+		applyTopDirectStops();
 	},
 );
+
+function toggleTransferGroup(key) {
+	expandedTransfers[key] = !expandedTransfers[key];
+}
+
+function activateTransferGroup(comboKey) {
+	const key = comboKey.replace(/^transfer-/, "");
+	maxTransfers.value = 1;
+	expandedTransfers[key] = true;
+}
 </script>
 
 <template>
 	<div class="bus-transfer-chart">
 		<div class="btc-selectors">
 			<div class="btc-card">
-				<div class="btc-card__title">起點 A</div>
+				<div class="btc-card__title">起點</div>
 				<div class="btc-fields-grid">
 					<div class="btc-field">
 						<label>城市</label>
-						<SearchableSelect v-model="fromState.city" :options="cities" />
+						<SearchableSelect
+							v-model="fromState.city"
+							:options="cities"
+						/>
 					</div>
 					<div class="btc-field">
 						<label>行政區</label>
-						<SearchableSelect v-model="fromState.district" :options="fromState.districts.map(d => ({label:d, value:d}))" :disabled="!fromState.city" />
-					</div>
-					<div class="btc-field">
-						<label>路名</label>
-						<SearchableSelect v-model="fromState.road" :options="fromState.roads.map(r => ({label: r.road_name, value: r.road_name}))" :disabled="!fromState.district" />
+						<SearchableSelect
+							v-model="fromState.district"
+							:options="
+								fromState.districts.map((d) => ({
+									label: d,
+									value: d,
+								}))
+							"
+							:disabled="!fromState.city"
+						/>
 					</div>
 					<div class="btc-field">
 						<label>公車站</label>
-						<SearchableSelect v-model="fromState.stopId" :options="fromState.stops.map(s => ({label: s.stop_name, value: s.stop_location_id}))" :disabled="!fromState.road" />
+						<SearchableSelect
+							v-model="fromState.stopId"
+							:options="
+								fromState.stops.map((s) => ({
+									label: s.stop_name,
+									value: s.stop_location_id,
+								}))
+							"
+							:disabled="!fromState.district"
+						/>
 					</div>
 				</div>
 			</div>
 
 			<div class="btc-card">
-				<div class="btc-card__title">終點 B</div>
+				<div class="btc-card__title">終點</div>
 				<div class="btc-fields-grid">
 					<div class="btc-field">
 						<label>城市</label>
-						<SearchableSelect v-model="toState.city" :options="cities" />
+						<SearchableSelect
+							v-model="toState.city"
+							:options="cities"
+						/>
 					</div>
 					<div class="btc-field">
 						<label>行政區</label>
-						<SearchableSelect v-model="toState.district" :options="toState.districts.map(d => ({label:d, value:d}))" :disabled="!toState.city" />
-					</div>
-					<div class="btc-field">
-						<label>路名</label>
-						<SearchableSelect v-model="toState.road" :options="toState.roads.map(r => ({label: r.road_name, value: r.road_name}))" :disabled="!toState.district" />
+						<SearchableSelect
+							v-model="toState.district"
+							:options="
+								toState.districts.map((d) => ({
+									label: d,
+									value: d,
+								}))
+							"
+							:disabled="!toState.city"
+						/>
 					</div>
 					<div class="btc-field">
 						<label>公車站</label>
-						<SearchableSelect v-model="toState.stopId" :options="toState.stops.map(s => ({label: s.stop_name, value: s.stop_location_id}))" :disabled="!toState.road" />
+						<SearchableSelect
+							v-model="toState.stopId"
+							:options="
+								toState.stops.map((s) => ({
+									label: s.stop_name,
+									value: s.stop_location_id,
+								}))
+							"
+							:disabled="!toState.district"
+						/>
 					</div>
 				</div>
 			</div>
@@ -410,9 +471,7 @@ watch(
 					一次轉乘
 				</button>
 			</div>
-			<div v-if="false" class="btc-warning">
-				起訖站需同一城市
-			</div>
+			<div v-if="false" class="btc-warning">起訖站需同一城市</div>
 		</div>
 
 		<div class="btc-results">
@@ -433,107 +492,119 @@ watch(
 					<div class="btc-combo-list">
 						<div
 							v-for="combo in resultCombos"
-							:key="combo"
+							:key="combo.key"
 							class="btc-combo-tag"
+							:class="`btc-combo-tag--${combo.type}`"
+							:title="combo.title"
+							@click="
+								combo.type === 'transfer' &&
+								activateTransferGroup(combo.key)
+							"
 						>
-							{{ combo }}
+							{{ combo.text }}
 						</div>
 						<div v-if="!resultCombos.length" class="btc-empty">
 							目前沒有可行組合
 						</div>
 					</div>
 				</div>
-				<div class="btc-section">
-					<h4>直達路線</h4>
-					<div class="btc-route-list">
-						<div
-							v-for="route in directRoutes"
-							:key="route.route_name"
-							class="btc-route-card"
-							:style="{
-								'--route-color': routeColor(route.route_name),
-							}"
-						>
-							<span class="btc-route-badge">直達</span>
-							<span class="btc-route-name">
-								{{ route.route_name }}
-							</span>
-						</div>
-						<div v-if="!directRoutes.length" class="btc-empty">
-							目前沒有直達路線
-						</div>
-					</div>
-				</div>
+
 
 				<div v-if="maxTransfers === 1" class="btc-section">
 					<h4>一次轉乘</h4>
 					<div class="btc-transfer-list">
 						<div
-							v-for="(item, index) in transferRoutes"
-							:key="`${item.route_a}-${item.route_b}-${index}`"
-							class="btc-transfer-card"
+							v-for="group in transferGroups.slice(0, 6)"
+							:key="group.key"
+							class="btc-transfer-group"
 						>
-							<div class="btc-transfer-flow">
-								<div class="btc-node">A</div>
-								<div
-									class="btc-line"
-									:style="{
-										'--route-color': routeColor(
-											item.route_a,
-										),
-									}"
-								/>
-								<div class="btc-node btc-node--transfer">T</div>
-								<div
-									class="btc-line"
-									:style="{
-										'--route-color': routeColor(
-											item.route_b,
-										),
-									}"
-								/>
-								<div class="btc-node">B</div>
-							</div>
-							<div class="btc-transfer-info">
-								<div
-									class="btc-route-pill"
-									:style="{
-										'--route-color': routeColor(
-											item.route_a,
-										),
-									}"
+							<button
+								class="btc-transfer-summary"
+								@click="toggleTransferGroup(group.key)"
+							>
+								<span
+									>搭{{ group.route_a }}轉{{
+										group.route_b
+									}}可抵達</span
 								>
-									{{ item.route_a }}
-								</div>
-								<div class="btc-transfer-stop">
-									轉乘站：{{ item.transfer_stop.stop_name }}
-								</div>
+								<span class="material-icons">
+									{{
+										expandedTransfers[group.key]
+											? "expand_less"
+											: "expand_more"
+									}}
+								</span>
+							</button>
+							<div
+								v-if="expandedTransfers[group.key]"
+								class="btc-transfer-details"
+							>
 								<div
-									class="btc-route-pill"
-									:style="{
-										'--route-color': routeColor(
-											item.route_b,
-										),
-									}"
+									v-for="stop in group.stops"
+									:key="
+										stop.stop_location_id || stop.stop_name
+									"
+									class="btc-transfer-card"
 								>
-									{{ item.route_b }}
+									<div class="btc-transfer-flow">
+										<div class="btc-node">A</div>
+										<div
+											class="btc-line"
+											:style="{
+												'--route-color': routeColor(
+													group.route_a,
+												),
+											}"
+										/>
+										<div
+											class="btc-node btc-node--transfer"
+										>
+											T
+										</div>
+										<div
+											class="btc-line"
+											:style="{
+												'--route-color': routeColor(
+													group.route_b,
+												),
+											}"
+										/>
+										<div class="btc-node">B</div>
+									</div>
+									<div class="btc-transfer-info">
+										<div
+											class="btc-route-pill"
+											:style="{
+												'--route-color': routeColor(
+													group.route_a,
+												),
+											}"
+										>
+											{{ group.route_a }}
+										</div>
+										<div class="btc-transfer-stop">
+											轉乘站：{{ stop.stop_name }}
+										</div>
+										<div
+											class="btc-route-pill"
+											:style="{
+												'--route-color': routeColor(
+													group.route_b,
+												),
+											}"
+										>
+											{{ group.route_b }}
+										</div>
+									</div>
 								</div>
 							</div>
 						</div>
-						<div v-if="!transferRoutes.length" class="btc-empty">
+						<div v-if="!transferGroups.length" class="btc-empty">
 							目前沒有一次轉乘建議
 						</div>
 					</div>
 				</div>
 			</div>
-		</div>
-
-		<div v-if="canSearch" class="btc-sql-block">
-			<button class="btc-sql-toggle" @click="showSql = !showSql">
-				<span class="material-icons">{{ showSql ? 'expand_less' : 'code' }}</span>
-				{{ showSql ? '隱藏 SQL' : '顯示 SQL' }}
-			</button>
-			<pre v-if="showSql" class="btc-sql-pre">{{ sqlPreview }}</pre>
 		</div>
 	</div>
 </template>
@@ -541,16 +612,20 @@ watch(
 <style scoped lang="scss">
 .bus-transfer-chart {
 	position: absolute;
-	top: 0; left: 0; right: 0; bottom: 0;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
 	display: flex;
 	overflow-y: auto;
 	padding-right: 4px;
+	padding-bottom: 80px;
 	flex-direction: column;
 	gap: 12px;
+	box-sizing: border-box;
 }
 
 .bus-transfer-chart * {
-	
 }
 
 .btc-selectors {
@@ -580,19 +655,30 @@ watch(
 }
 
 .btc-fields-grid {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	gap: 8px 12px;
+	display: flex;
+	gap: 12px;
+	justify-content: space-between;
 }
 
 .btc-field {
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
+	flex: 1 1 0;
+	min-width: 0;
 
 	label {
-		font-size: 12px;
+		font-size: 11px;
 		color: #9fb0c6;
+	}
+
+	:deep(.ss-display) {
+		min-height: 30px;
+		padding: 6px 10px;
+	}
+
+	:deep(.ss-value) {
+		font-size: 12px;
 	}
 }
 
@@ -605,15 +691,11 @@ watch(
 	font-size: 13px;
 	outline: none;
 	transition: border-color 0.15s;
+}
 
-	&:focus {
-		border-color: #43d0ff;
-	}
-
-	&:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
+.btc-warning {
+	font-size: 12px;
+	color: #ffb74d;
 }
 
 .btc-actions {
@@ -648,15 +730,9 @@ watch(
 	}
 }
 
-.btc-warning {
-	font-size: 12px;
-	color: #ffb74d;
-}
-
 .btc-results {
-	flex: 1;
-	overflow-y: auto;
-	min-height: 0;
+	flex: 1 1 auto;
+	min-height: 320px;
 	background: rgba(17, 24, 34, 0.6);
 	border: 1px solid rgba(71, 89, 110, 0.3);
 	border-radius: 12px;
@@ -697,16 +773,29 @@ watch(
 	display: flex;
 	flex-wrap: wrap;
 	gap: 8px;
+	max-height: 150px;
+	overflow-y: auto;
+	padding-right: 4px;
 }
 
 .btc-combo-tag {
-	padding: 6px 10px;
+	padding: 4px 8px;
 	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+}
+
+.btc-combo-tag--direct {
+	background: rgba(255, 88, 88, 0.12);
+	border: 1px solid rgba(255, 88, 88, 0.45);
+	color: #ff7a7a;
+}
+
+.btc-combo-tag--transfer {
 	background: rgba(67, 208, 255, 0.15);
 	border: 1px solid rgba(67, 208, 255, 0.5);
 	color: #cfefff;
-	font-size: 12px;
-	font-weight: 600;
+	cursor: pointer;
 }
 
 .btc-route-card {
@@ -740,6 +829,37 @@ watch(
 }
 
 .btc-transfer-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.btc-transfer-group {
+	background: rgba(13, 20, 31, 0.8);
+	border: 1px solid rgba(80, 98, 120, 0.5);
+	border-radius: 12px;
+	padding: 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.btc-transfer-summary {
+	border: none;
+	background: rgba(20, 30, 45, 0.9);
+	color: #e5edf7;
+	border-radius: 10px;
+	padding: 8px 10px;
+	font-size: 12px;
+	font-weight: 600;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	cursor: pointer;
+}
+
+.btc-transfer-details {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
@@ -838,7 +958,9 @@ watch(
 	font-size: 12px;
 	padding: 6px 12px;
 	cursor: pointer;
-	transition: color 0.15s, border-color 0.15s;
+	transition:
+		color 0.15s,
+		border-color 0.15s;
 
 	&:hover {
 		color: #b6d4ef;
@@ -858,7 +980,7 @@ watch(
 	border-radius: 8px;
 	color: #7ecfff;
 	font-size: 12px;
-	font-family: 'Fira Code', 'Consolas', monospace;
+	font-family: "Fira Code", "Consolas", monospace;
 	line-height: 1.6;
 	white-space: pre;
 	overflow-x: auto;
