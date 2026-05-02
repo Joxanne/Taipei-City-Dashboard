@@ -129,9 +129,11 @@ const districtData = computed(() => {
 		烏來區: 0,
 		highest: 0,
 		sum: 0,
+		mean: 0,
 	};
 	let highest = 0;
 	let sum = 0;
+	let count = 0;
 	if (props.series.length === 1) {
 		props.series[0].data.forEach((item) => {
 			output[item.x] = item.y;
@@ -139,6 +141,7 @@ const districtData = computed(() => {
 				highest = item.y;
 			}
 			sum += item.y;
+			count++;
 		});
 	} else {
 		props.series.forEach((serie) => {
@@ -160,6 +163,7 @@ const districtData = computed(() => {
 
 	output.highest = highest;
 	output.sum = sum;
+	output.mean = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
 
 	return output;
 });
@@ -283,8 +287,8 @@ function handleDataSelection(index) {
     class="districtchart"
   >
     <div class="districtchart-title">
-      <h5>總合</h5>
-      <h6>{{ districtData.sum }} {{ chart_config.unit }}</h6>
+      <h5>{{ props.series.length === 1 ? '平均' : '總合' }}</h5>
+      <h6>{{ props.series.length === 1 ? districtData.mean : districtData.sum }} {{ chart_config.unit }}</h6>
       <div class="districtchart-title-legend">
         <p>多</p>
         <div

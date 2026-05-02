@@ -484,13 +484,17 @@ export const useMapStore = defineStore("map", {
 		},
 		// 3-1. Add a local geojson as a source in mapbox
 		addGeojsonSource(map_config, data) {
+			if (!this.map) {
+				console.warn("Map instance not available for addGeojsonSource");
+				return;
+			}
 			if (
 				!["voronoi", "isoline"].includes(map_config.type) &&
 				map_config.type !== "symbol-3d"
 			) {
 				this.map.addSource(`${map_config.layerId}-source`, {
 					type: "geojson",
-					data: { ...data },
+					data: data,
 				});
 			}
 			if (map_config.type === "arc") {
@@ -505,6 +509,10 @@ export const useMapStore = defineStore("map", {
 		},
 		// 3-2. Add a raster map as a source in mapbox
 		async addRasterSource(map_config) {
+			if (!this.map) {
+				console.warn("Map instance not available for addRasterSource");
+				return;
+			}
 			if (
 				["arc", "voronoi", "isoline", "symbol-3d"].includes(
 					map_config.type,
@@ -631,17 +639,21 @@ export const useMapStore = defineStore("map", {
 		// 4-1. Using the mapbox source and map config, create a new layer
 		// The styles and configs can be edited in /assets/configs/mapbox/mapConfig.js
 		addMapLayer(map_config) {
+			if (!this.map) {
+				console.warn("Map instance not available for addMapLayer");
+				return;
+			}
 			let extra_paint_configs = {};
 			let extra_layout_configs = {};
 			if (map_config.icon) {
 				extra_paint_configs = {
 					...maplayerCommonPaint[
-						`${map_config.type}-${map_config.icon}`
+					`${map_config.type}-${map_config.icon}`
 					],
 				};
 				extra_layout_configs = {
 					...maplayerCommonLayout[
-						`${map_config.type}-${map_config.icon}`
+					`${map_config.type}-${map_config.icon}`
 					],
 				};
 			}
@@ -649,13 +661,13 @@ export const useMapStore = defineStore("map", {
 				extra_paint_configs = {
 					...extra_paint_configs,
 					...maplayerCommonPaint[
-						`${map_config.type}-${map_config.size}`
+					`${map_config.type}-${map_config.size}`
 					],
 				};
 				extra_layout_configs = {
 					...extra_layout_configs,
 					...maplayerCommonLayout[
-						`${map_config.type}-${map_config.size}`
+					`${map_config.type}-${map_config.size}`
 					],
 				};
 			}
@@ -686,18 +698,18 @@ export const useMapStore = defineStore("map", {
 			};
 			if (
 				map_config.layerId ===
-					"wee_hazard_water-fill-extrusion-metrotaipei" ||
+				"wee_hazard_water-fill-extrusion-metrotaipei" ||
 				map_config.layerId ===
-					"wee_hazard_water_tp-fill-extrusion-taipei"
+				"wee_hazard_water_tp-fill-extrusion-taipei"
 			) {
 				config.filter = initialFilter;
 			}
 			this.map.addLayer(config);
 			if (
 				map_config.layerId ===
-					"wee_hazard_water-fill-extrusion-metrotaipei" ||
+				"wee_hazard_water-fill-extrusion-metrotaipei" ||
 				map_config.layerId ===
-					"wee_hazard_water_tp-fill-extrusion-taipei"
+				"wee_hazard_water_tp-fill-extrusion-taipei"
 			)
 				this.animateFilter(map_config.layerId);
 			this.currentLayers.push(map_config.layerId);
@@ -779,7 +791,7 @@ export const useMapStore = defineStore("map", {
 				getTargetColor: () => {
 					const color = hexToRGB(
 						paintSettings["arc-color"][1] ||
-							paintSettings["arc-color"][0],
+						paintSettings["arc-color"][0],
 					);
 					return [
 						parseInt(color.r, 16),
@@ -818,15 +830,15 @@ export const useMapStore = defineStore("map", {
 			const layers = Object.keys(this.deckGlLayer).map((index) => {
 				const l = this.deckGlLayer[index];
 				switch (l.type) {
-				case "ArcLayer":
-					return new ArcLayer(l.config);
-				case "AnimatedArcLayer":
-					return new AnimatedArcLayer({
-						...l.config,
-						coef: this.step / 1000,
-					});
-				default:
-					break;
+					case "ArcLayer":
+						return new ArcLayer(l.config);
+					case "AnimatedArcLayer":
+						return new AnimatedArcLayer({
+							...l.config,
+							coef: this.step / 1000,
+						});
+					default:
+						break;
 				}
 			});
 			this.overlay.setProps({
@@ -1835,7 +1847,7 @@ export const useMapStore = defineStore("map", {
 			} else {
 				if (
 					mapLayerId ===
-						"wee_hazard_water-fill-extrusion-metrotaipei" ||
+					"wee_hazard_water-fill-extrusion-metrotaipei" ||
 					mapLayerId === "wee_hazard_water_tp-fill-extrusion-taipei"
 				) {
 					const filterClass = [
@@ -1897,7 +1909,7 @@ export const useMapStore = defineStore("map", {
 				if (item.type === "symbol-3d") {
 					const customLayer =
 						this.customLayers[
-							`${item.index}-${item.type}-${item.city}`
+						`${item.index}-${item.type}-${item.city}`
 						];
 					if (customLayer?.carTooltip) {
 						customLayer.carTooltip.style.display = "none";
@@ -2077,7 +2089,7 @@ export const useMapStore = defineStore("map", {
 
 						const videoUrl =
 							parsedPopupContent[activeTabValue].properties[
-								videoProperty.key
+							videoProperty.key
 							];
 						if (!videoUrl) {
 							return;
@@ -2355,9 +2367,9 @@ export const useMapStore = defineStore("map", {
 						) {
 							return (
 								d.properties[map_filter.byParam.xParam] ===
-									xParam &&
+								xParam &&
 								d.properties[map_filter.byParam.yParam] ===
-									yParam
+								yParam
 							);
 						} else if (map_filter.byParam.yParam && yParam) {
 							return (
@@ -2548,11 +2560,9 @@ export const useMapStore = defineStore("map", {
 				);
 			} else {
 				const res = await axios.get(
-					`${
-						location.origin
-					}/geo_server/taipei_vioc/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=taipei_vioc%3A${
-						this.mapConfigs[this.currentVisibleLayers[targetLayer]]
-							.index
+					`${location.origin
+					}/geo_server/taipei_vioc/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=taipei_vioc%3A${this.mapConfigs[this.currentVisibleLayers[targetLayer]]
+						.index
 					}&maxFeatures=1000000&outputFormat=application%2Fjson`,
 				);
 

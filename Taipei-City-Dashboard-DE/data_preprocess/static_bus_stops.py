@@ -213,6 +213,7 @@ def _save_stops(cur, records: list[dict]) -> None:
             latitude         DOUBLE PRECISION,
             longitude        DOUBLE PRECISION,
             district         VARCHAR(20),
+            geo_city         VARCHAR(10),
             data_time        TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             _ctime           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
             _mtime           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
@@ -239,17 +240,16 @@ def _save_stops(cur, records: list[dict]) -> None:
 
 
 def _enrich_district(cur) -> None:
-    cur.execute("""
-        ALTER TABLE public.bus_stop_tpe
-        ADD COLUMN IF NOT EXISTS district VARCHAR(20)
-    """)
-    # 先清空，避免上次殘留的值干擾
-    cur.execute("UPDATE public.bus_stop_tpe SET district = NULL")
+    cur.execute("ALTER TABLE public.bus_stop_tpe ADD COLUMN IF NOT EXISTS district VARCHAR(20)")
+    cur.execute("ALTER TABLE public.bus_stop_tpe ADD COLUMN IF NOT EXISTS geo_city VARCHAR(10)")
+    # 清空，避免上次殘留的值干擾
+    cur.execute("UPDATE public.bus_stop_tpe SET district = NULL, geo_city = NULL")
 
     print("[enrichment] 補行政區（臺北市 tp_district）...")
     cur.execute("""
         UPDATE public.bus_stop_tpe s
-        SET district = d.tname
+        SET district = d.tname,
+            geo_city = '臺北市'
         FROM public.tp_district d
         WHERE s.latitude  IS NOT NULL
           AND s.longitude IS NOT NULL
@@ -263,7 +263,8 @@ def _enrich_district(cur) -> None:
     print("[enrichment] 補行政區（新北市 tw_village）...")
     cur.execute("""
         UPDATE public.bus_stop_tpe s
-        SET district = v.town_name
+        SET district  = v.town_name,
+            geo_city  = '新北市'
         FROM public.tw_village v
         WHERE s.district   IS NULL
           AND s.latitude   IS NOT NULL
