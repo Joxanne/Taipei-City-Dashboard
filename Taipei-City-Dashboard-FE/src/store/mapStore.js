@@ -9,18 +9,26 @@ https://docs.mapbox.com/mapbox-gl-js/guides/
 */
 
 /* global gtag */
-import { createApp, defineComponent, nextTick, ref, watch, markRaw } from "vue";
-import { defineStore } from "pinia";
-import mapboxGl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import Hls from "hls.js";
 import { ArcLayer } from "@deck.gl/layers";
 import { MapboxOverlay } from "@deck.gl/mapbox";
+import { distance, point } from "@turf/turf";
 import axios from "axios";
-import http from "../router/axios.js";
+import Hls from "hls.js";
+import mapboxGl from "mapbox-gl";
+import "mapbox-gl/dist/mapbox-gl.css";
+import { defineStore } from "pinia";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { point, distance, booleanPointInPolygon } from "@turf/turf";
+import {
+	booleanPointInPolygon,
+	createApp,
+	defineComponent,
+	markRaw,
+	nextTick,
+	ref,
+	watch,
+} from "vue";
+import http from "../router/axios.js";
 
 // Other Stores
 import { useAuthStore } from "./authStore";
@@ -31,33 +39,33 @@ import { useDialogStore } from "./dialogStore";
 import MapPopup from "../components/map/MapPopup.vue";
 
 // Utility Functions or Configs
+import { AnimatedArcLayer } from "../assets/configs/mapbox/arcAnimate.js";
 import {
-	MapObjectConfig,
 	CityMapView,
+	MapObjectConfig,
 	TaipeiBuilding,
+	maplayerCommonLayout,
+	maplayerCommonPaint,
 	metroTaipeiTown,
 	metroTaipeiVillage,
 	metroTpDistrict,
 	metroTpVillage,
-	maplayerCommonLayout,
-	maplayerCommonPaint,
 } from "../assets/configs/mapbox/mapConfig.js";
 import mapStyle from "../assets/configs/mapbox/mapStyle.js";
+import { calculateHaversineDistance } from "../assets/utilityFunctions/calculateHaversineDistance";
 import { hexToRGB } from "../assets/utilityFunctions/colorConvert.js";
 import { interpolation } from "../assets/utilityFunctions/interpolation.js";
 import { marchingSquare } from "../assets/utilityFunctions/marchingSquare.js";
 import { voronoi } from "../assets/utilityFunctions/voronoi.js";
-import { calculateHaversineDistance } from "../assets/utilityFunctions/calculateHaversineDistance";
-import { AnimatedArcLayer } from "../assets/configs/mapbox/arcAnimate.js";
 // 3D Mrt Map 相關 Utility Functions
-import { cutRouteSegment } from "../assets/utilityFunctions/getRouteForAnimation.js";
 import { interpolateAlongSegment } from "../assets/utilityFunctions/geometryUtils.js";
-import { updateCarsPosition } from "../assets/utilityFunctions/mrtCars.js";
 import { getPopupCoordinates } from "../assets/utilityFunctions/getPopupCoordinates.js";
+import { cutRouteSegment } from "../assets/utilityFunctions/getRouteForAnimation.js";
 import {
 	getCrowdColor,
 	mrtLineColor,
 } from "../assets/utilityFunctions/getThematicColor.js";
+import { updateCarsPosition } from "../assets/utilityFunctions/mrtCars.js";
 
 export const useMapStore = defineStore("map", {
 	state: () => ({
@@ -489,13 +497,20 @@ export const useMapStore = defineStore("map", {
 				console.warn("Map instance not available for addGeojsonSource");
 				return;
 			}
+			const clusteringEnabled =
+				map_config.type === "circle" &&
+				map_config.paint?.["cluster-enabled"] === true;
 			if (
 				!["voronoi", "isoline"].includes(map_config.type) &&
 				map_config.type !== "symbol-3d"
 			) {
 				this.map.addSource(`${map_config.layerId}-source`, {
 					type: "geojson",
-					data: data,
+					data: { ...data },
+					cluster: clusteringEnabled,
+					clusterRadius: map_config.paint?.["cluster-radius"] ?? 42,
+					clusterMaxZoom:
+						map_config.paint?.["cluster-max-zoom"] ?? 14,
 				});
 			}
 			if (map_config.type === "arc") {
@@ -646,15 +661,19 @@ export const useMapStore = defineStore("map", {
 			}
 			let extra_paint_configs = {};
 			let extra_layout_configs = {};
+			const clusteringEnabled =
+				map_config.type === "circle" &&
+				map_config.source === "geojson" &&
+				map_config.paint?.["cluster-enabled"] === true;
 			if (map_config.icon) {
 				extra_paint_configs = {
 					...maplayerCommonPaint[
-					`${map_config.type}-${map_config.icon}`
+						`${map_config.type}-${map_config.icon}`
 					],
 				};
 				extra_layout_configs = {
 					...maplayerCommonLayout[
-					`${map_config.type}-${map_config.icon}`
+						`${map_config.type}-${map_config.icon}`
 					],
 				};
 			}
@@ -662,13 +681,13 @@ export const useMapStore = defineStore("map", {
 				extra_paint_configs = {
 					...extra_paint_configs,
 					...maplayerCommonPaint[
-					`${map_config.type}-${map_config.size}`
+						`${map_config.type}-${map_config.size}`
 					],
 				};
 				extra_layout_configs = {
 					...extra_layout_configs,
 					...maplayerCommonLayout[
-					`${map_config.type}-${map_config.size}`
+						`${map_config.type}-${map_config.size}`
 					],
 				};
 			}
@@ -684,8 +703,6 @@ export const useMapStore = defineStore("map", {
 			const config = {
 				id: map_config.layerId,
 				type: map_config.type,
-				"source-layer":
-					map_config.source === "raster" ? map_config.index : "",
 				paint: {
 					...maplayerCommonPaint[`${map_config.type}`],
 					...extra_paint_configs,
@@ -697,23 +714,119 @@ export const useMapStore = defineStore("map", {
 				},
 				source: `${map_config.layerId}-source`,
 			};
+			if (clusteringEnabled) {
+				config.filter = ["!", ["has", "point_count"]];
+			}
+			if (map_config.source === "raster") {
+				config["source-layer"] = map_config.index;
+			}
 			if (
 				map_config.layerId ===
-				"wee_hazard_water-fill-extrusion-metrotaipei" ||
+					"wee_hazard_water-fill-extrusion-metrotaipei" ||
 				map_config.layerId ===
-				"wee_hazard_water_tp-fill-extrusion-taipei"
+					"wee_hazard_water_tp-fill-extrusion-taipei"
 			) {
 				config.filter = initialFilter;
+			}
+			if (clusteringEnabled) {
+				const clusterLayerId = `${map_config.layerId}-cluster`;
+				const clusterCountLayerId = `${map_config.layerId}-cluster-count`;
+				const clusterColor =
+					map_config.paint?.["cluster-color"] ?? "#B91C1C";
+				const clusterTextColor =
+					map_config.paint?.["cluster-text-color"] ?? "#FFFFFF";
+				const clusterStrokeColor =
+					map_config.paint?.["cluster-stroke-color"] ?? "#7F1D1D";
+				const clusterStrokeWidth =
+					map_config.paint?.["cluster-stroke-width"] ?? 1.5;
+
+				this.map.addLayer({
+					id: clusterLayerId,
+					type: "circle",
+					source: `${map_config.layerId}-source`,
+					filter: ["has", "point_count"],
+					paint: {
+						"circle-color": clusterColor,
+						"circle-stroke-color": clusterStrokeColor,
+						"circle-stroke-width": clusterStrokeWidth,
+						"circle-opacity": 0.9,
+						"circle-radius": [
+							"step",
+							["get", "point_count"],
+							16,
+							10,
+							20,
+							30,
+							26,
+						],
+					},
+				});
+
+				this.map.addLayer({
+					id: clusterCountLayerId,
+					type: "symbol",
+					source: `${map_config.layerId}-source`,
+					filter: ["has", "point_count"],
+					layout: {
+						"text-field": ["get", "point_count_abbreviated"],
+						"text-font": [
+							"Open Sans Bold",
+							"Arial Unicode MS Bold",
+						],
+						"text-size": 12,
+					},
+					paint: {
+						"text-color": clusterTextColor,
+					},
+				});
+
+				map_config._clusterLayerIds = [
+					clusterLayerId,
+					clusterCountLayerId,
+				];
+
+				this.map.on("click", clusterLayerId, (event) => {
+					const features = this.map.queryRenderedFeatures(
+						event.point,
+						{
+							layers: [clusterLayerId],
+						},
+					);
+					const clusterId = features?.[0]?.properties?.cluster_id;
+					if (clusterId === undefined) return;
+
+					this.map
+						.getSource(`${map_config.layerId}-source`)
+						.getClusterExpansionZoom(clusterId, (err, zoom) => {
+							if (err) return;
+							this.map.easeTo({
+								center: features[0].geometry.coordinates,
+								zoom,
+							});
+						});
+				});
+
+				this.map.on("mouseenter", clusterLayerId, () => {
+					this.map.getCanvas().style.cursor = "pointer";
+				});
+				this.map.on("mouseleave", clusterLayerId, () => {
+					this.map.getCanvas().style.cursor = "";
+				});
 			}
 			this.map.addLayer(config);
 			if (
 				map_config.layerId ===
-				"wee_hazard_water-fill-extrusion-metrotaipei" ||
+					"wee_hazard_water-fill-extrusion-metrotaipei" ||
 				map_config.layerId ===
-				"wee_hazard_water_tp-fill-extrusion-taipei"
+					"wee_hazard_water_tp-fill-extrusion-taipei"
 			)
 				this.animateFilter(map_config.layerId);
 			this.currentLayers.push(map_config.layerId);
+			map_config._clusterLayerIds?.forEach((layerId) => {
+				if (!this.currentLayers.includes(layerId)) {
+					this.currentLayers.push(layerId);
+				}
+			});
 			this.mapConfigs[map_config.layerId] = map_config;
 			if (!this.currentVisibleLayers.includes(map_config.layerId)) {
 				this.currentVisibleLayers.push(map_config.layerId);
@@ -792,7 +905,7 @@ export const useMapStore = defineStore("map", {
 				getTargetColor: () => {
 					const color = hexToRGB(
 						paintSettings["arc-color"][1] ||
-						paintSettings["arc-color"][0],
+							paintSettings["arc-color"][0],
 					);
 					return [
 						parseInt(color.r, 16),
@@ -1840,6 +1953,8 @@ export const useMapStore = defineStore("map", {
 		},
 		//  5. Turn on the visibility for a exisiting map layer
 		turnOnMapLayerVisibility(mapLayerId) {
+			const clusterLayerIds =
+				this.mapConfigs[mapLayerId]?._clusterLayerIds || [];
 			if (mapLayerId.indexOf("-arc") !== -1) {
 				this.deckGlLayer[mapLayerId].config.visible = true;
 				this.step = 1;
@@ -1848,7 +1963,7 @@ export const useMapStore = defineStore("map", {
 			} else {
 				if (
 					mapLayerId ===
-					"wee_hazard_water-fill-extrusion-metrotaipei" ||
+						"wee_hazard_water-fill-extrusion-metrotaipei" ||
 					mapLayerId === "wee_hazard_water_tp-fill-extrusion-taipei"
 				) {
 					const filterClass = [
@@ -1876,6 +1991,15 @@ export const useMapStore = defineStore("map", {
 						"visibility",
 						"visible",
 					);
+					clusterLayerIds.forEach((layerId) => {
+						if (this.map.getLayer(layerId)) {
+							this.map.setLayoutProperty(
+								layerId,
+								"visibility",
+								"visible",
+							);
+						}
+					});
 				}
 			}
 		},
@@ -1884,6 +2008,8 @@ export const useMapStore = defineStore("map", {
 			this.stopAnimation();
 			map_config.forEach((element) => {
 				let mapLayerId = `${element.index}-${element.type}-${element.city}`;
+				const clusterLayerIds =
+					this.mapConfigs[mapLayerId]?._clusterLayerIds || [];
 				this.loadingLayers = this.loadingLayers.filter(
 					(el) => el !== mapLayerId,
 				);
@@ -1897,6 +2023,15 @@ export const useMapStore = defineStore("map", {
 						"visibility",
 						"none",
 					);
+					clusterLayerIds.forEach((layerId) => {
+						if (this.map.getLayer(layerId)) {
+							this.map.setLayoutProperty(
+								layerId,
+								"visibility",
+								"none",
+							);
+						}
+					});
 				}
 				this.currentVisibleLayers = this.currentVisibleLayers.filter(
 					(element) => element !== mapLayerId,
@@ -1910,7 +2045,7 @@ export const useMapStore = defineStore("map", {
 				if (item.type === "symbol-3d") {
 					const customLayer =
 						this.customLayers[
-						`${item.index}-${item.type}-${item.city}`
+							`${item.index}-${item.type}-${item.city}`
 						];
 					if (customLayer?.carTooltip) {
 						customLayer.carTooltip.style.display = "none";
@@ -2090,7 +2225,7 @@ export const useMapStore = defineStore("map", {
 
 						const videoUrl =
 							parsedPopupContent[activeTabValue].properties[
-							videoProperty.key
+								videoProperty.key
 							];
 						if (!videoUrl) {
 							return;
@@ -2368,9 +2503,9 @@ export const useMapStore = defineStore("map", {
 						) {
 							return (
 								d.properties[map_filter.byParam.xParam] ===
-								xParam &&
+									xParam &&
 								d.properties[map_filter.byParam.yParam] ===
-								yParam
+									yParam
 							);
 						} else if (map_filter.byParam.yParam && yParam) {
 							return (
@@ -2561,9 +2696,11 @@ export const useMapStore = defineStore("map", {
 				);
 			} else {
 				const res = await axios.get(
-					`${location.origin
-					}/geo_server/taipei_vioc/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=taipei_vioc%3A${this.mapConfigs[this.currentVisibleLayers[targetLayer]]
-						.index
+					`${
+						location.origin
+					}/geo_server/taipei_vioc/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=taipei_vioc%3A${
+						this.mapConfigs[this.currentVisibleLayers[targetLayer]]
+							.index
 					}&maxFeatures=1000000&outputFormat=application%2Fjson`,
 				);
 
@@ -2687,10 +2824,14 @@ export const useMapStore = defineStore("map", {
 
 			this.isochroneState.isLoading = true;
 			try {
+				const geojson = await fetch(url).then((r) => r.json());
+				if (!geojson?.features?.length)
+					throw new Error("Isochrone API error");
 				const response = await fetch(url);
 				if (!response.ok) throw new Error(`HTTP ${response.status}`);
 				const geojson = await response.json();
-				if (!geojson?.features?.length) throw new Error("Isochrone API error");
+				if (!geojson?.features?.length)
+					throw new Error("Isochrone API error");
 				// 外圈先畫，內圈後畫，避免外圈蓋住內圈
 				geojson.features.reverse();
 				this.removeIsochroneOverlay();
@@ -2767,7 +2908,9 @@ export const useMapStore = defineStore("map", {
 			});
 			return unique.filter((f) => {
 				const pt = point(f.geometry.coordinates);
-				return isoFeatures.some((iso) => booleanPointInPolygon(pt, iso));
+				return isoFeatures.some((iso) =>
+					booleanPointInPolygon(pt, iso),
+				);
 			});
 		},
 		addFilteredLayer(features) {
