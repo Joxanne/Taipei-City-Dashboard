@@ -51,7 +51,7 @@ func RebuildQdrantPublicCollection() ([]models.QuertChartAndConponentForQdrant, 
 		log.Println("No public component data found. Aborting Qdrant rebuild.")
 		return data, nil
 	}
-	
+
 	// 2. Generate vectors for each data point	points, vectorSize, err := generateVectors(data)
 	points, vectorSize, err := generateVectors(data)
 	if err != nil {
@@ -92,7 +92,13 @@ func generateVectors(data []models.QuertChartAndConponentForQdrant) ([]qdrantPoi
 
 	for _, item := range data {
 		// Combine text fields for vector generation
-		combinedText := item.LongDesc
+		combinedText := item.ShortDesc
+		if item.LongDesc != "" {
+			if combinedText != "" {
+				combinedText += " "
+			}
+			combinedText += item.LongDesc
+		}
 		if item.UseCase != "" {
 			if combinedText != "" {
 				combinedText += " "
@@ -105,7 +111,7 @@ func generateVectors(data []models.QuertChartAndConponentForQdrant) ([]qdrantPoi
 		combinedText = strings.ReplaceAll(combinedText, "\r\n", " ")
 		combinedText = strings.ReplaceAll(combinedText, "\r", " ")
 		combinedText = strings.ReplaceAll(combinedText, "\n", " ")
-		
+
 		if combinedText == "" {
 			log.Printf("Skipping item ID %d (%s) due to empty combined text for vector generation.", item.ID, item.Name)
 			continue
@@ -124,12 +130,13 @@ func generateVectors(data []models.QuertChartAndConponentForQdrant) ([]qdrantPoi
 
 		// Create payload
 		payload := map[string]interface{}{
-			"id":        item.ID,
-			"index":     item.Index,
-			"name":      item.Name,
-			"city":      item.City,
-			"long_desc": item.LongDesc,
-			"use_case":  item.UseCase,
+			"id":         item.ID,
+			"index":      item.Index,
+			"name":       item.Name,
+			"city":       item.City,
+			"short_desc": item.ShortDesc,
+			"long_desc":  item.LongDesc,
+			"use_case":   item.UseCase,
 		}
 
 		// Handle point ID type: Qdrant accepts integer or UUID string.

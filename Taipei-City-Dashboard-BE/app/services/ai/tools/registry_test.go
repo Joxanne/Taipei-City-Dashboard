@@ -135,9 +135,8 @@ func TestRegisterDeduplicatesRegisteredTools(t *testing.T) {
 
 func TestRegisteredToolsIncludeBuiltInsWithRequiredTWCCFields(t *testing.T) {
 	expected := map[string]bool{
-		"get_current_time":         false,
-		"get_population_summary":   false,
-		"search_components_hybrid": false,
+		"get_current_time":       false,
+		"get_population_summary": false,
 	}
 
 	for _, tool := range RegisteredTools() {
@@ -175,6 +174,14 @@ func TestRegisteredToolsIncludeBuiltInsWithRequiredTWCCFields(t *testing.T) {
 	for name, found := range expected {
 		if !found {
 			t.Fatalf("expected registered tool %s", name)
+		}
+	}
+}
+
+func TestRegisteredToolsDoNotIncludeRAGWorkflowSearch(t *testing.T) {
+	for _, tool := range RegisteredTools() {
+		if tool.Function != nil && tool.Function.Name == "search_components_hybrid" {
+			t.Fatal("search_components_hybrid should be used by the fixed RAG workflow, not registered as an LLM tool")
 		}
 	}
 }

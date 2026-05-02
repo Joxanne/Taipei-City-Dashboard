@@ -16,12 +16,14 @@ func TestAIChatInputToCallOptionsIncludesRegisteredTools(t *testing.T) {
 	}
 
 	expected := map[string]bool{
-		"get_current_time":         false,
-		"get_population_summary":   false,
-		"search_components_hybrid": false,
+		"get_current_time":       false,
+		"get_population_summary": false,
 	}
 	for _, tool := range callOptions.Tools {
 		if tool.Function != nil {
+			if tool.Function.Name == "search_components_hybrid" {
+				t.Fatal("search_components_hybrid should not be exposed as an LLM tool")
+			}
 			if _, ok := expected[tool.Function.Name]; ok {
 				expected[tool.Function.Name] = true
 			}

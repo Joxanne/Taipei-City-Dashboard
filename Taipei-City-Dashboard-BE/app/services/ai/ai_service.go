@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"TaipeiCityDashboardBE/app/models"
@@ -81,8 +82,12 @@ type aiSession struct {
 }
 
 func (s *aiSession) run(ctx context.Context) (*models.AIChatLog, error) {
-	maxLoops := 5
 	s.executedTools = make([]string, 0)
+
+	// Fixed RAG pre-step: always retrieve before generation.
+	s.runRAGPreStep(ctx)
+
+	maxLoops := 5
 	for i := 0; i < maxLoops; i++ {
 		s.sendHeartbeat(ctx)
 
@@ -163,8 +168,6 @@ func (s *aiSession) executeTools(ctx context.Context, toolCalls []llms.ToolCall)
 		if err != nil {
 			result = fmt.Sprintf("Error: %v. Please verify arguments.", err)
 			logs.FError("Tool Error: %v", err)
-		} else {
-			s.collectToolResult(tc.FunctionCall.Name, result)
 		}
 
 		s.currentMessages = append(s.currentMessages, llms.MessageContent{
@@ -177,27 +180,16 @@ func (s *aiSession) executeTools(ctx context.Context, toolCalls []llms.ToolCall)
 	return nil
 }
 
-func (s *aiSession) collectToolResult(name string, result string) {
-	if name != "search_components_hybrid" {
-		return
-	}
-
-	var components []models.CityComponentScore
-	if err := json.Unmarshal([]byte(result), &components); err != nil {
-		logs.FError("Failed to parse component tool result: %v", err)
-		return
-	}
-	s.componentResults = components
-}
-
 func (s *aiSession) injectInstructions() {
 	toolNames := ""
 	for i, t := range s.callOpts.Tools {
-		if i > 0 { toolNames += ", " }
+		if i > 0 {
+			toolNames += ", "
+		}
 		toolNames += t.Function.Name
 	}
 
-	instruction := fmt.Sprintf("\nSystem Instruction:\n1. Use ONLY: [%s].\n2. NEVER nest tool calls \n3. Arguments MUST be literal values (strings, integers, etc.), never function calls \n4. For dependent tasks, call tools sequentially in separate turns.\n5. If stuck, respond with text.", toolNames)
+	instruction := fmt.Sprintf("\n\n工具使用規則：\n1. 可用工具：[%s]。\n2. 只有在使用者明確提出需要查詢、計算、即時資訊或外部資料時才使用工具。\n3. 使用者只是打招呼、閒聊、感謝或測試訊息時，不要呼叫工具，請直接簡短回應。\n4. 不要巢狀呼叫工具；工具參數必須是實際字串、數字等 literal values。\n5. 若任務需要多個相依工具，請分回合依序呼叫。若不確定是否需要工具，請先用文字回應。", toolNames)
 
 	s.currentMessages = make([]llms.MessageContent, 0)
 	merged := false
@@ -212,8 +204,8 @@ func (s *aiSession) injectInstructions() {
 
 	if !merged {
 		s.currentMessages = append([]llms.MessageContent{{
-			Role: llms.ChatMessageTypeSystem,
-			Parts: []llms.ContentPart{llms.TextContent{Text: "Instruction: Use tools: [" + toolNames + "]."}},
+			Role:  llms.ChatMessageTypeSystem,
+			Parts: []llms.ContentPart{llms.TextContent{Text: fmt.Sprintf("工具使用規則：可用工具：[%s]。只有在使用者明確需要查詢、計算、即時資訊或外部資料時才使用工具；打招呼、閒聊、感謝或測試訊息不要呼叫工具。", toolNames)}},
 		}}, s.currentMessages...)
 	}
 }
@@ -239,9 +231,9 @@ func (s *aiSession) finalize() (*models.AIChatLog, error) {
 		log.Answer = s.lastResp.Choices[0].Content
 		log.InputTokens, log.OutputTokens = s.totalInput, s.totalOutput
 		log.TotalTokens = s.totalInput + s.totalOutput
+		log.Components = s.componentResults
 		if s.toolUsed {
 			log.ToolUsed = true
-			log.Components = s.componentResults
 			if toolJSON, err := json.Marshal(s.executedTools); err == nil {
 				log.Tools = string(toolJSON)
 			}
@@ -256,7 +248,9 @@ func (s *aiSession) finalize() (*models.AIChatLog, error) {
 
 func toolsToParts(calls []llms.ToolCall) []llms.ContentPart {
 	parts := make([]llms.ContentPart, len(calls))
-	for i, c := range calls { parts[i] = c }
+	for i, c := range calls {
+		parts[i] = c
+	}
 	return parts
 }
 
@@ -274,15 +268,80 @@ func mergeSystemMsg(m llms.MessageContent, instruction string) llms.MessageConte
 
 func extractText(m llms.MessageContent) string {
 	for _, p := range m.Parts {
-		if t, ok := p.(llms.TextContent); ok { return t.Text }
+		if t, ok := p.(llms.TextContent); ok {
+			return t.Text
+		}
 	}
 	return ""
 }
 
 func parseUsageInt(val interface{}) int {
 	switch v := val.(type) {
-	case int: return v
-	case float64: return int(v)
-	default: return 0
+	case int:
+		return v
+	case float64:
+		return int(v)
+	default:
+		return 0
 	}
+}
+
+func (s *aiSession) runRAGPreStep(ctx context.Context) {
+	if len(s.req.Messages) == 0 {
+		return
+	}
+	userMessage := extractText(s.req.Messages[len(s.req.Messages)-1])
+	if userMessage == "" {
+		return
+	}
+
+	expandedQuery := expandQuery(ctx, userMessage)
+	combinedQuery := userMessage
+	if expandedQuery != userMessage {
+		combinedQuery = userMessage + " " + expandedQuery
+	}
+	logs.FInfo("RAG pre-step query=%q expanded=%q combined=%q", userMessage, expandedQuery, combinedQuery)
+
+	components, err := tools.HybridSearch(ctx, combinedQuery, ragRetrieveLimit)
+	if err != nil {
+		logs.FError("RAG retrieval failed: %v", err)
+		return
+	}
+	logs.FInfo("RAG retrieval returned %d component(s): %s", len(components), summarizeComponents(components))
+
+	s.componentResults = components
+	ragContext := buildRAGContext(components)
+	if ragContext == "" {
+		return
+	}
+	s.appendToSystemMessage(ragContext)
+}
+
+func (s *aiSession) appendToSystemMessage(addition string) {
+	for i, msg := range s.currentMessages {
+		if msg.Role != llms.ChatMessageTypeSystem {
+			continue
+		}
+		newParts := make([]llms.ContentPart, len(msg.Parts))
+		for j, p := range msg.Parts {
+			if tp, ok := p.(llms.TextContent); ok {
+				newParts[j] = llms.TextContent{Text: tp.Text + addition}
+			} else {
+				newParts[j] = p
+			}
+		}
+		s.currentMessages[i] = llms.MessageContent{Role: msg.Role, Parts: newParts}
+		return
+	}
+}
+
+func summarizeComponents(components []models.CityComponentScore) string {
+	if len(components) == 0 {
+		return "[]"
+	}
+	names := make([]string, 0, len(components))
+	for _, component := range components {
+		names = append(names, fmt.Sprintf("%s/%s/%s", component.Index, component.City, component.Name))
+	}
+	return strings.Join(names, ", ")
 }
