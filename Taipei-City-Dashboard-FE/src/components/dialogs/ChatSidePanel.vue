@@ -1,11 +1,11 @@
 <script setup>
-import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { storeToRefs } from "pinia";
 import SendIcon from "../icons/SendIcon.vue";
 import BotLogo from "../icons/BotLogo.vue";
 import UserLogo from "../icons/UserLogo.vue";
 
-import { useChatStore } from "../../store/chatStore";
+import { CHAT_TOOL_GROUPS, useChatStore } from "../../store/chatStore";
 
 const chatStore = useChatStore();
 const {
@@ -15,6 +15,7 @@ const {
 	chatData,
 	isLoading,
 	currentSessionId,
+	activeToolGroups,
 } = storeToRefs(chatStore);
 const {
 	closePanel,
@@ -23,15 +24,24 @@ const {
 	deleteSession,
 	handleBackToSessions,
 	addQueryData,
+	toggleToolGroup,
 } = chatStore;
 
 const userMessage = ref("");
 const chatAreaRef = ref(null);
+const isToolMenuOpen = ref(false);
+const toolMenuRef = ref(null);
 const panelWidth = ref(380);
 const isResizing = ref(false);
 const isStickyVisible = ref(true);
 const bodyCursorBeforeResize = ref("");
 const bodyUserSelectBeforeResize = ref("");
+
+const activeToolGroupItems = computed(() =>
+	activeToolGroups.value
+		.map((id) => CHAT_TOOL_GROUPS.find((group) => group.id === id))
+		.filter(Boolean),
+);
 
 const formatSessionDate = (session) => {
 	if (!session.created_at) return session.session;
@@ -61,6 +71,16 @@ const handleDeleteSession = (sessionId) => {
 
 const handleCloseSticky = () => {
 	isStickyVisible.value = false;
+};
+
+const handleToolMenuToggle = () => {
+	isToolMenuOpen.value = !isToolMenuOpen.value;
+};
+
+const handleToolMenuClickOutside = (event) => {
+	if (toolMenuRef.value && !toolMenuRef.value.contains(event.target)) {
+		isToolMenuOpen.value = false;
+	}
 };
 
 const handleResizeMove = (event) => {
@@ -108,7 +128,12 @@ watch(
 	{ deep: true },
 );
 
+onMounted(() => {
+	document.addEventListener("click", handleToolMenuClickOutside);
+});
+
 onBeforeUnmount(() => {
+	document.removeEventListener("click", handleToolMenuClickOutside);
 	if (isResizing.value) {
 		handleResizeEnd();
 	}
@@ -307,20 +332,84 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <div class="chatsidepanel-input">
-          <input
-            v-model="userMessage"
-            type="text"
-            placeholder="詢問小幫手..."
-            :disabled="isLoading"
-            @keyup.enter="handleSendMessage(userMessage)"
-          >
+        <div
+          v-if="activeToolGroupItems.length > 0"
+          class="chatsidepanel-active-tools"
+        >
           <button
-            :disabled="isLoading || !userMessage.trim()"
-            @click="handleSendMessage(userMessage)"
+            v-for="group in activeToolGroupItems"
+            :key="group.id"
+            class="chatsidepanel-active-tool-chip"
+            :title="`移除 ${group.label}`"
+            @click="toggleToolGroup(group.id)"
           >
-            <SendIcon />
+            <span>{{ group.icon }}</span>
+            {{ group.label }}
+            <span class="chatsidepanel-active-tool-remove">close</span>
           </button>
+        </div>
+
+        <div
+          ref="toolMenuRef"
+          class="chatsidepanel-tool-area"
+        >
+          <div
+            v-if="isToolMenuOpen"
+            class="chatsidepanel-tool-dropdown"
+          >
+            <button
+              v-for="group in CHAT_TOOL_GROUPS"
+              :key="group.id"
+              class="chatsidepanel-tool-option"
+              :class="{
+                'chatsidepanel-tool-option--active':
+                  activeToolGroups.includes(group.id),
+              }"
+              @click.stop="toggleToolGroup(group.id)"
+            >
+              <span class="chatsidepanel-tool-option-icon">
+                {{ group.icon }}
+              </span>
+              <span class="chatsidepanel-tool-option-label">
+                {{ group.label }}
+              </span>
+              <span
+                v-if="activeToolGroups.includes(group.id)"
+                class="chatsidepanel-tool-option-check"
+              >
+                check
+              </span>
+            </button>
+          </div>
+
+          <div class="chatsidepanel-input">
+            <div class="chatsidepanel-tool-menu">
+              <button
+                class="chatsidepanel-tool-btn"
+                :class="{
+                  'chatsidepanel-tool-btn--active': activeToolGroups.length > 0,
+                }"
+                title="選擇工具"
+                @click.stop="handleToolMenuToggle"
+              >
+                <span>add</span>
+              </button>
+            </div>
+            <input
+              v-model="userMessage"
+              type="text"
+              placeholder="詢問小幫手..."
+              :disabled="isLoading"
+              @keyup.enter="handleSendMessage(userMessage)"
+            >
+            <button
+              class="chatsidepanel-send-btn"
+              :disabled="isLoading || !userMessage.trim()"
+              @click="handleSendMessage(userMessage)"
+            >
+              <SendIcon />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -760,7 +849,6 @@ onBeforeUnmount(() => {
 	align-items: center;
 	gap: 0.5rem;
 	padding: 0.75rem 1rem;
-	border-top: 1px solid var(--color-border);
 	background-color: var(--color-component-background);
 
 	input[type="text"] {
@@ -788,7 +876,7 @@ onBeforeUnmount(() => {
 		}
 	}
 
-	button {
+	.chatsidepanel-send-btn {
 		width: 36px;
 		height: 36px;
 		display: flex;
@@ -810,6 +898,133 @@ onBeforeUnmount(() => {
 			cursor: not-allowed;
 		}
 	}
+}
+
+.chatsidepanel-active-tools {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	padding: 6px 1rem;
+	border-top: 1px solid var(--color-border);
+	background-color: var(--color-component-background);
+}
+
+.chatsidepanel-active-tool-chip {
+	height: 24px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 8px;
+	border: 1px solid var(--color-highlight);
+	border-radius: 12px;
+	background: transparent;
+	color: var(--color-highlight);
+	font-size: var(--font-s);
+	transition: background-color 0.15s;
+	cursor: pointer;
+
+	span {
+		font-family: var(--font-icon);
+		font-size: 14px;
+	}
+
+	&:hover {
+		background-color: rgba(90, 156, 248, 0.12);
+	}
+}
+
+.chatsidepanel-active-tool-remove {
+	margin-left: 2px;
+}
+
+.chatsidepanel-tool-area {
+	border-top: 1px solid var(--color-border);
+	background-color: var(--color-component-background);
+}
+
+.chatsidepanel-tool-menu {
+	flex-shrink: 0;
+}
+
+.chatsidepanel-tool-btn {
+	width: 36px;
+	height: 36px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-shrink: 0;
+	border: 1px solid var(--color-border);
+	border-radius: 50%;
+	background: transparent;
+	color: var(--color-complement-text);
+	transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+	cursor: pointer;
+
+	span {
+		font-family: var(--font-icon);
+		font-size: 20px;
+	}
+
+	&:hover {
+		background-color: rgba(255, 255, 255, 0.06);
+		color: var(--color-normal-text);
+	}
+
+	&.chatsidepanel-tool-btn--active {
+		border-color: var(--color-highlight);
+		color: var(--color-highlight);
+	}
+}
+
+.chatsidepanel-tool-dropdown {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin: 0.75rem 1rem 0;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background-color: var(--color-component-background);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.chatsidepanel-tool-option {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 10px 12px;
+	border: none;
+	background: transparent;
+	color: var(--color-normal-text);
+	font-size: var(--font-s);
+	text-align: left;
+	transition: background-color 0.15s;
+	cursor: pointer;
+
+	&:hover {
+		background-color: rgba(255, 255, 255, 0.06);
+	}
+
+	&.chatsidepanel-tool-option--active {
+		color: var(--color-highlight);
+	}
+}
+
+.chatsidepanel-tool-option-icon {
+	flex-shrink: 0;
+	font-family: var(--font-icon);
+	font-size: 18px;
+}
+
+.chatsidepanel-tool-option-label {
+	flex: 1;
+}
+
+.chatsidepanel-tool-option-check {
+	flex-shrink: 0;
+	color: var(--color-highlight);
+	font-family: var(--font-icon);
+	font-size: 16px;
 }
 
 @media (max-width: 600px) {

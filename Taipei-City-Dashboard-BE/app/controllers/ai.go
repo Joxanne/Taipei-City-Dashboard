@@ -59,7 +59,8 @@ type AIChatInput struct {
 			Parameters  interface{} `json:"parameters,omitempty"`
 		} `json:"function" binding:"required"`
 	} `json:"tools,omitempty"`
-	ToolChoice interface{} `json:"tool_choice,omitempty"`
+	ToolChoice   interface{} `json:"tool_choice,omitempty"`
+	EnabledTools []string    `json:"enabled_tools,omitempty"`
 }
 
 // ChatWithTWCC is the controller for POST /api/v1/ai/chat/twai
@@ -261,9 +262,19 @@ func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 		}
 		registeredByName[tool.Function.Name] = tool
 	}
+	enabledSet := make(map[string]struct{}, len(input.EnabledTools))
+	hasEnabledFilter := input.EnabledTools != nil
+	for _, name := range input.EnabledTools {
+		enabledSet[name] = struct{}{}
+	}
 	for _, t := range input.Tools {
 		if _, exists := seenTools[t.Function.Name]; exists {
 			continue
+		}
+		if hasEnabledFilter {
+			if _, allowed := enabledSet[t.Function.Name]; !allowed {
+				continue
+			}
 		}
 		tool := normalizeRequestTool(t.Type, t.Function.Name, t.Function.Description, t.Function.Parameters, registeredByName[t.Function.Name])
 		if tool.Function == nil || tool.Function.Name == "" {
@@ -278,6 +289,11 @@ func (input *AIChatInput) ToCallOptions() []llms.CallOption {
 		}
 		if _, exists := seenTools[tool.Function.Name]; exists {
 			continue
+		}
+		if hasEnabledFilter {
+			if _, allowed := enabledSet[tool.Function.Name]; !allowed {
+				continue
+			}
 		}
 		llmTools = append(llmTools, tool)
 		seenTools[tool.Function.Name] = struct{}{}

@@ -5,6 +5,28 @@ import { useAuthStore } from "./authStore";
 import { useContentStore } from "./contentStore";
 import { useMapStore } from "./mapStore";
 
+export const CHAT_TOOL_GROUPS = [
+	{
+		id: "isochrone",
+		label: "通勤圈分析",
+		icon: "explore",
+		tools: ["show_isochrone"],
+	},
+	{
+		id: "dashboard_group",
+		label: "組件群組分析",
+		icon: "dashboard_customize",
+		tools: ["create_component_group"],
+	},
+];
+
+const CHAT_BASE_TOOLS = [
+	"get_current_time",
+	"search_components_hybrid",
+	"toggle_component",
+	"get_population_summary",
+];
+
 export const useChatStore = defineStore("chat", () => {
 	const authStore = useAuthStore();
 
@@ -13,6 +35,7 @@ export const useChatStore = defineStore("chat", () => {
 	const sessionList = ref([]);
 	const currentSessionId = ref(null);
 	const isLoading = ref(false);
+	const activeToolGroups = ref([]);
 	const defaultChatData = [
 		{
 			id: 1,
@@ -98,6 +121,7 @@ export const useChatStore = defineStore("chat", () => {
 	const handleNewSession = () => {
 		currentSessionId.value = generateSessionId();
 		chatData.value = [...defaultChatData];
+		activeToolGroups.value = [];
 		view.value = "chat";
 	};
 
@@ -161,6 +185,15 @@ export const useChatStore = defineStore("chat", () => {
 		await fetchSessions();
 	};
 
+	const toggleToolGroup = (id) => {
+		const index = activeToolGroups.value.indexOf(id);
+		if (index >= 0) {
+			activeToolGroups.value.splice(index, 1);
+			return;
+		}
+		activeToolGroups.value.push(id);
+	};
+
 	const addChatData = (newChatData) => {
 		chatData.value.push({
 			id: chatData.value.length + 1,
@@ -221,9 +254,14 @@ export const useChatStore = defineStore("chat", () => {
 		isLoading.value = true;
 
 		try {
+			const selectedTools = activeToolGroups.value.flatMap(
+				(id) => CHAT_TOOL_GROUPS.find((group) => group.id === id)?.tools ?? [],
+			);
+			const enabledTools = [...CHAT_BASE_TOOLS, ...selectedTools];
 			const response = await http.post("/ai/chat/twai", {
 				session: currentSessionId.value,
 				messages: requestMessages,
+				enabled_tools: enabledTools,
 			});
 			const aiData = response.data?.data;
 			const aiContent =
@@ -305,6 +343,7 @@ export const useChatStore = defineStore("chat", () => {
 		currentSessionId,
 		chatData,
 		isLoading,
+		activeToolGroups,
 		openPanel,
 		closePanel,
 		togglePanel,
@@ -315,6 +354,6 @@ export const useChatStore = defineStore("chat", () => {
 		handleBackToSessions,
 		addChatData,
 		addQueryData,
-		sendFilterResultsToAI,
+		toggleToolGroup,
 	};
 });

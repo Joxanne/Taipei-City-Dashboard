@@ -78,6 +78,64 @@ func TestAIChatInputToCallOptionsDeduplicatesRequestTools(t *testing.T) {
 	}
 }
 
+func TestAIChatInputToCallOptionsFiltersRegisteredToolsWhenEnabledToolsProvided(t *testing.T) {
+	input := &AIChatInput{
+		EnabledTools: []string{
+			"get_current_time",
+			"get_population_summary",
+		},
+	}
+	input.Tools = append(input.Tools, struct {
+		Type     string `json:"type" binding:"required,eq=function"`
+		Function struct {
+			Name        string      `json:"name" binding:"required"`
+			Description string      `json:"description,omitempty"`
+			Parameters  interface{} `json:"parameters,omitempty"`
+		} `json:"function" binding:"required"`
+	}{
+		Type: "function",
+		Function: struct {
+			Name        string      `json:"name" binding:"required"`
+			Description string      `json:"description,omitempty"`
+			Parameters  interface{} `json:"parameters,omitempty"`
+		}{
+			Name: "unlisted_request_tool",
+		},
+	})
+
+	callOptions := llms.CallOptions{}
+	for _, option := range input.ToCallOptions() {
+		option(&callOptions)
+	}
+
+	expected := map[string]bool{
+		"get_current_time":       false,
+		"get_population_summary": false,
+	}
+	blocked := map[string]bool{
+		"show_isochrone":         true,
+		"create_component_group": true,
+		"unlisted_request_tool":  true,
+	}
+	for _, tool := range callOptions.Tools {
+		if tool.Function == nil {
+			continue
+		}
+		name := tool.Function.Name
+		if _, isBlocked := blocked[name]; isBlocked {
+			t.Fatalf("expected enabled_tools to filter out %s", name)
+		}
+		if _, ok := expected[name]; ok {
+			expected[name] = true
+		}
+	}
+	for name, found := range expected {
+		if !found {
+			t.Fatalf("expected enabled_tools to keep %s", name)
+		}
+	}
+}
+
 func TestAIChatInputToCallOptionsNoMissingDescriptionSchemas(t *testing.T) {
 	input := &AIChatInput{}
 	input.Tools = append(input.Tools, struct {
