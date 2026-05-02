@@ -10,12 +10,31 @@ bus_stop_by_district/setup.py — 公車站牌分布組件安裝腳本
   2. 爬取雙北公車路線與站牌，寫入 public.bus_stop_tpe 等三張表
   3. 對 dashboardmanager 執行 patch_manager.sql
 """
+import os
 import sys
 from pathlib import Path
 
 ROOT          = Path(__file__).parent.parent.parent
 DE_PREPROCESS = ROOT / "Taipei-City-Dashboard-DE" / "data_preprocess"
 sys.path.insert(0, str(DE_PREPROCESS))
+
+# docker/.env 被 .gitignore 排除，clone 後不存在；在 config 載入前先補上預設值。
+_env_path = ROOT / "docker" / ".env"
+if _env_path.exists():
+    with open(_env_path, encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _, _v = _line.partition("=")
+            os.environ.setdefault(_k.strip(), _v.strip())
+else:
+    print("[提示] 找不到 docker/.env，使用專案預設密碼 (icta)。")
+    print("       若您的密碼不同，請先設定環境變數：")
+    print("         Windows: set DB_MANAGER_PASSWORD=your_password")
+    print("         Linux/Mac: export DB_MANAGER_PASSWORD=your_password\n")
+    os.environ.setdefault("DB_MANAGER_PASSWORD", "icta")
+    os.environ.setdefault("DB_DASHBOARD_PASSWORD", "icta")
 
 import psycopg2
 from config import PG_MANAGER

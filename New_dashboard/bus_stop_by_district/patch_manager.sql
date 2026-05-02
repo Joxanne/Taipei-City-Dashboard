@@ -44,7 +44,7 @@ SELECT
     'two_d',
     'SELECT district AS x_axis, COUNT(*) AS data
 FROM public.bus_stop_tpe
-WHERE city = ''臺北市'' AND district IS NOT NULL
+WHERE geo_city = ''臺北市'' AND district IS NOT NULL
 GROUP BY district ORDER BY data DESC',
     NULL, 'taipei'
 WHERE NOT EXISTS (
