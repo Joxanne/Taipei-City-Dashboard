@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import http from "../../router/axios";
+import busRealtimePositions from "../assets/bus/busRealtimePositions.json";
 
 const props = defineProps([
 	"chart_config",
@@ -24,6 +25,7 @@ const selectorRef = ref(null);
 const dropdownRef = ref(null);
 const dropdownStyle = ref({});
 const mapFilterActive = ref(false);
+const realtimeStops = ref(busRealtimePositions);
 
 let latestRequestId = 0;
 
@@ -56,6 +58,53 @@ const stopRows = computed(() => {
 	return rows;
 });
 
+const busPositionByDirection = computed(() => {
+	const result = { 0: null, 1: null };
+	if (!selectedRoute.value) return result;
+
+	for (const direction of [0, 1]) {
+		const candidates = realtimeStops.value.filter(
+			(stop) =>
+				stop.RouteName?.Zh_tw === selectedRoute.value &&
+				stop.Direction === direction &&
+				stop.StopStatus === 0 &&
+				stop.EstimateTime != null,
+		);
+		if (!candidates.length) continue;
+
+		const nearest = candidates.reduce((current, next) =>
+			Number(current.EstimateTime) <= Number(next.EstimateTime)
+				? current
+				: next,
+		);
+		result[direction] = nearest.StopName?.Zh_tw ?? null;
+	}
+	return result;
+});
+
+const busPositionStopNames = computed(() => {
+	const positionNames = Object.values(busPositionByDirection.value).filter(
+		Boolean,
+	);
+	const matchedNames = positionNames
+		.map((positionName) => {
+			if (stops.value.some((stop) => stop.stop_name === positionName)) {
+				return positionName;
+			}
+			return (
+				stops.value.find(
+					(stop) =>
+						stop.stop_name &&
+						(stop.stop_name.includes(positionName) ||
+							positionName.includes(stop.stop_name)),
+				)?.stop_name ?? null
+			);
+		})
+		.filter(Boolean);
+
+	return new Set(matchedNames);
+});
+
 // ── Gradient #2979FF → #00BFA5 ────────────────────────────────────────────────
 function getStopColor(globalIdx) {
 	const total = stops.value.length - 1;
@@ -64,6 +113,10 @@ function getStopColor(globalIdx) {
 	const g = Math.round(0x79 + t * (0xbf - 0x79));
 	const b = Math.round(0xff + t * (0xa5 - 0xff));
 	return `rgb(${r},${g},${b})`;
+}
+
+function isCurrentBusStop(stop) {
+	return busPositionStopNames.value.has(stop.stop_name);
 }
 
 // ── API ────────────────────────────────────────────────────────────────────────
@@ -272,6 +325,12 @@ onUnmounted(() => {
 									),
 								}"
 							/>
+							<img
+								v-if="isCurrentBusStop(stop)"
+								src="/images/map/bus-station.png"
+								class="brc-stop__bus-icon"
+								alt="公車目前位置"
+							>
 							<span class="brc-stop__label">{{
 								stop.stop_name
 							}}</span>
@@ -434,7 +493,7 @@ onUnmounted(() => {
 
 .brc-row__line {
 	position: absolute;
-	top: 5px; /* vertically centred on 14px dot: (14-3)/2 ≈ 5px */
+	top: 29px; /* vertically centred on 14px dot after icon space */
 	left: calc(100% / 12); /* centre of 1st stop for 6-stop row */
 	right: calc(100% / 12); /* centre of last stop */
 	height: 3px;
@@ -448,6 +507,7 @@ onUnmounted(() => {
 	flex-direction: column;
 	align-items: center;
 	position: relative;
+	padding-top: 24px;
 	z-index: 1;
 	cursor: default;
 	min-width: 0;
@@ -464,6 +524,30 @@ onUnmounted(() => {
 
 	.brc-stop:hover & {
 		transform: scale(1.3);
+	}
+}
+
+.brc-stop__bus-icon {
+	width: 20px;
+	height: 20px;
+	position: absolute;
+	top: 0;
+	left: 50%;
+	margin-top: 0;
+	animation: bus-pulse 1.5s ease-in-out infinite;
+	object-fit: contain;
+	filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.6));
+	z-index: 2;
+}
+
+@keyframes bus-pulse {
+	0%,
+	100% {
+		transform: translateX(-50%) scale(1);
+	}
+
+	50% {
+		transform: translateX(-50%) scale(1.15);
 	}
 }
 

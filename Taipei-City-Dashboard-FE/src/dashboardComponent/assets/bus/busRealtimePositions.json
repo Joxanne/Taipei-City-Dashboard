@@ -1,0 +1,570 @@
+[
+  {
+    "StopUID": "TPE187095",
+    "StopID": "187095",
+    "StopName": {
+      "Zh_tw": "新莊高中",
+      "En": "Xinzhuang High School"
+    },
+    "RouteUID": "TPE10471",
+    "RouteID": "10471",
+    "RouteName": {
+      "Zh_tw": "615",
+      "En": "615"
+    },
+    "Direction": 1,
+    "StopStatus": 4,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE187094",
+    "StopID": "187094",
+    "StopName": {
+      "Zh_tw": "新莊高中",
+      "En": "Xinzhuang High School"
+    },
+    "RouteUID": "TPE10471",
+    "RouteID": "10471",
+    "RouteName": {
+      "Zh_tw": "615",
+      "En": "615"
+    },
+    "Direction": 0,
+    "StopStatus": 4,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36407",
+    "StopID": "36407",
+    "StopName": {
+      "Zh_tw": "榮總一",
+      "En": "Veterans General Hospital I"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 1208,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36408",
+    "StopID": "36408",
+    "StopName": {
+      "Zh_tw": "榮總",
+      "En": "Veterans General Hospital"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 1261,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12438",
+    "StopID": "12438",
+    "StopName": {
+      "Zh_tw": "捷運芝山站(戲曲中心)",
+      "En": "MRT Zhishan Sta. (Taiwan Traditional Theatre Center)"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 367,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36409",
+    "StopID": "36409",
+    "StopName": {
+      "Zh_tw": "永明派出所",
+      "En": "Yongming Police Substation"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 1326,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12439",
+    "StopID": "12439",
+    "StopName": {
+      "Zh_tw": "龍山寺(剝皮寮)",
+      "En": "Longshan Temple (Bopiliao)"
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 2004,
+    "StopStatus": 1,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12432",
+    "StopID": "12432",
+    "StopName": {
+      "Zh_tw": "士林區行政中心(中正)",
+      "En": "Shilin Admin. Center"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 127,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36400",
+    "StopID": "36400",
+    "StopName": {
+      "Zh_tw": "行義路一",
+      "En": "Xingyi Rd. 1"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 823,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12433",
+    "StopID": "12433",
+    "StopName": {
+      "Zh_tw": "萬大路",
+      "En": "Wanda Rd."
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 1800,
+    "StopStatus": 1,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36401",
+    "StopID": "36401",
+    "StopName": {
+      "Zh_tw": "行義路",
+      "En": "Xingyi Rd."
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 861,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12430",
+    "StopID": "12430",
+    "StopName": {
+      "Zh_tw": "陽明高中",
+      "En": "Yangming High School"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 1870,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36402",
+    "StopID": "36402",
+    "StopName": {
+      "Zh_tw": "明山宮",
+      "En": "Mingshan Temple"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 923,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12431",
+    "StopID": "12431",
+    "StopName": {
+      "Zh_tw": "西藏路",
+      "En": "Xizang Rd."
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 1740,
+    "StopStatus": 1,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36403",
+    "StopID": "36403",
+    "StopName": {
+      "Zh_tw": "磺溪",
+      "En": "Huangxi"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 997,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12436",
+    "StopID": "12436",
+    "StopName": {
+      "Zh_tw": "捷運芝山站一",
+      "En": "MRT Zhishan Sta. 1"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 258,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36404",
+    "StopID": "36404",
+    "StopName": {
+      "Zh_tw": "福德廟(行義)",
+      "En": "Fude Temple (Xingyi)"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 1043,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12437",
+    "StopID": "12437",
+    "StopName": {
+      "Zh_tw": "萬華車站",
+      "En": "Wanhua Station"
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 1876,
+    "StopStatus": 1,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12434",
+    "StopID": "12434",
+    "StopName": {
+      "Zh_tw": "士林國中",
+      "En": "Shilin Jr. High School"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 181,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE36406",
+    "StopID": "36406",
+    "StopName": {
+      "Zh_tw": "榮光新村(榮總東院)",
+      "En": "Rongguan New Village (Eastern District of V.G.H.)"
+    },
+    "RouteUID": "TPE10442",
+    "RouteID": "10442",
+    "RouteName": {
+      "Zh_tw": "508區",
+      "En": "508Shuttle"
+    },
+    "Direction": 1,
+    "EstimateTime": 1157,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12435",
+    "StopID": "12435",
+    "StopName": {
+      "Zh_tw": "莒光路口",
+      "En": "Juguang Rd. Entrance"
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 1829,
+    "StopStatus": 1,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12440",
+    "StopID": "12440",
+    "StopName": {
+      "Zh_tw": "中正高中",
+      "En": "Zhongzheng High School"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 427,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12449",
+    "StopID": "12449",
+    "StopName": {
+      "Zh_tw": "洛陽停車場",
+      "En": "Luoyang Parking Lot"
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 228,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12443",
+    "StopID": "12443",
+    "StopName": {
+      "Zh_tw": "昆明活動中心",
+      "En": "Kunming Activity Center"
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 2172,
+    "StopStatus": 1,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12444",
+    "StopID": "12444",
+    "StopName": {
+      "Zh_tw": "石牌",
+      "En": "Shipai"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 567,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12441",
+    "StopID": "12441",
+    "StopName": {
+      "Zh_tw": "老松國小",
+      "En": "Laosong Elementary School"
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 2091,
+    "StopStatus": 1,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12442",
+    "StopID": "12442",
+    "StopName": {
+      "Zh_tw": "文林國小",
+      "En": "Wenlin Elementary School"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 512,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12447",
+    "StopID": "12447",
+    "StopName": {
+      "Zh_tw": "市立中醫醫院",
+      "En": "Taipei Municipal Hospital of Tradodional Chinese Medicine"
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 115,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12448",
+    "StopID": "12448",
+    "StopName": {
+      "Zh_tw": "石牌國小",
+      "En": "Shipai Elementary School"
+    },
+    "RouteUID": "TPE11881",
+    "RouteID": "11881",
+    "RouteName": {
+      "Zh_tw": "重慶幹線",
+      "En": "Chongqing Metro Bus"
+    },
+    "Direction": 1,
+    "EstimateTime": 762,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  },
+  {
+    "StopUID": "TPE12445",
+    "StopID": "12445",
+    "StopName": {
+      "Zh_tw": "昆明街",
+      "En": "Kunming St."
+    },
+    "RouteUID": "TPE10722",
+    "RouteID": "10722",
+    "RouteName": {
+      "Zh_tw": "藍29",
+      "En": "BL29"
+    },
+    "Direction": 0,
+    "EstimateTime": 46,
+    "StopStatus": 0,
+    "SrcUpdateTime": "2026-05-03T09:48:50+08:00",
+    "UpdateTime": "2026-05-03T09:48:58+08:00"
+  }
+]
