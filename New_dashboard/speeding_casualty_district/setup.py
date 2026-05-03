@@ -9,6 +9,8 @@ speeding_casualty_district/setup.py — 超速傷亡事故行政區計數組件�
   1. 對 dashboardmanager 執行 patch_manager.sql
 """
 
+import os
+import sys
 from pathlib import Path
 
 import sys

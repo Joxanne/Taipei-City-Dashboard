@@ -7,7 +7,12 @@ const props = defineProps([
 	"activeChart",
 	"activeCity",
 	"series",
+	"map_config",
+	"map_filter",
+	"map_filter_on",
 ]);
+
+const emits = defineEmits(["filterByParam", "clearByParamFilter"]);
 
 // ── State ──────────────────────────────────────────────────────────────────────
 const stops = ref([]);
@@ -18,6 +23,7 @@ const loading = ref(false);
 const selectorRef = ref(null);
 const dropdownRef = ref(null);
 const dropdownStyle = ref({});
+const mapFilterActive = ref(false);
 
 let latestRequestId = 0;
 
@@ -89,6 +95,17 @@ function selectRoute(routeName) {
 	search.value = "";
 	dropdownOpen.value = false;
 	fetchStops(routeName);
+	if (props.map_filter && props.map_filter_on) {
+		emits("filterByParam", props.map_filter, props.map_config, routeName, null);
+		mapFilterActive.value = true;
+	}
+}
+
+function clearAllRoutes() {
+	mapFilterActive.value = false;
+	if (props.map_config) {
+		emits("clearByParamFilter", props.map_config);
+	}
 }
 
 // ── Dropdown positioning (Teleport to body) ────────────────────────────────────
@@ -156,21 +173,34 @@ onUnmounted(() => {
 	document.removeEventListener("click", handleDocumentClick);
 	window.removeEventListener("resize", handleViewportChange);
 	window.removeEventListener("scroll", handleViewportChange, true);
+	if (mapFilterActive.value && props.map_config) {
+		emits("clearByParamFilter", props.map_config);
+	}
 });
 </script>
 
 <template>
 	<div v-if="activeChart === 'BusRouteChart'" class="bus-route-chart">
 		<!-- ── Selector display ───────────────────────────────────────────── -->
-		<div ref="selectorRef" class="brc-selector">
-			<div class="brc-selector__display" @click="toggleDropdown">
-				<span class="brc-selector__value">{{
-					selectedRoute || "—"
-				}}</span>
-				<span class="material-icons brc-selector__arrow">
-					{{ dropdownOpen ? "expand_less" : "expand_more" }}
-				</span>
+		<div class="brc-selector-row">
+			<div ref="selectorRef" class="brc-selector">
+				<div class="brc-selector__display" @click="toggleDropdown">
+					<span class="brc-selector__value">{{
+						selectedRoute || "—"
+					}}</span>
+					<span class="material-icons brc-selector__arrow">
+						{{ dropdownOpen ? "expand_less" : "expand_more" }}
+					</span>
+				</div>
 			</div>
+			<button
+				v-if="mapFilterActive && map_filter_on"
+				class="brc-show-all"
+				@click="clearAllRoutes"
+			>
+				<span class="material-icons">layers</span>
+				顯示全部
+			</button>
 		</div>
 
 		<!-- ── Dropdown list (teleported to body to escape overflow) ─────── -->
@@ -282,9 +312,18 @@ onUnmounted(() => {
 	height: 100%;
 }
 
+/* ── Selector row ─────────────────────────────────────────────────────────── */
+.brc-selector-row {
+	display: flex;
+	gap: 6px;
+	align-items: stretch;
+	flex-shrink: 0;
+}
+
 /* ── Selector ─────────────────────────────────────────────────────────────── */
 .brc-selector {
-	flex-shrink: 0;
+	flex: 1;
+	min-width: 0;
 }
 
 .brc-selector__display {
@@ -314,6 +353,33 @@ onUnmounted(() => {
 .brc-selector__arrow {
 	font-size: 18px;
 	color: var(--color-text-secondary, #8a9bb0);
+}
+
+/* ── Show-all button ──────────────────────────────────────────────────────── */
+.brc-show-all {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 10px;
+	background: rgba(41, 121, 255, 0.12);
+	border: 1px solid rgba(41, 121, 255, 0.4);
+	border-radius: 6px;
+	color: #2979ff;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+	white-space: nowrap;
+	transition: background 0.15s, border-color 0.15s;
+	flex-shrink: 0;
+
+	.material-icons {
+		font-size: 16px;
+	}
+
+	&:hover {
+		background: rgba(41, 121, 255, 0.22);
+		border-color: #2979ff;
+	}
 }
 
 /* ── Scrollable snake area ────────────────────────────────────────────────── */
