@@ -11,6 +11,16 @@ speeding_casualty_district/setup.py — 超速傷亡事故行政區計數組件�
 
 from pathlib import Path
 
+import sys
+
+ROOT = Path(__file__).parent.parent.parent
+DE_PREPROCESS = ROOT / "Taipei-City-Dashboard-DE" / "data_preprocess"
+FE_MAPDATA = ROOT / "Taipei-City-Dashboard-FE" / "public" / "mapData"
+GEOJSON_PATH = FE_MAPDATA / "speeding_casualty_points_tpe.geojson"
+
+sys.path.insert(0, str(DE_PREPROCESS))
+
+
 import psycopg2
 
 from config import PG_MANAGER

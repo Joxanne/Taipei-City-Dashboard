@@ -355,5 +355,6 @@ export const useChatStore = defineStore("chat", () => {
 		addChatData,
 		addQueryData,
 		toggleToolGroup,
+		sendFilterResultsToAI,
 	};
 });

@@ -56,13 +56,46 @@ function openAIInput() {
 }
 
 async function confirmSendToAI() {
-	const title =
-		mapStore.mapConfigs[selectedLayerId.value]?.title || "站點";
-	await chatStore.sendFilterResultsToAI(
-		filteredFeatures.value,
-		title,
-		userQuestion.value,
-	);
+	const config = mapStore.mapConfigs[selectedLayerId.value];
+	const title = config?.title || "資料點";
+	const features = filteredFeatures.value;
+	const sample = features.slice(0, 20);
+
+	// Use the layer's property definitions to format each feature generically
+	let propDefs = [];
+	try {
+		propDefs = typeof config?.property === "string"
+			? JSON.parse(config.property)
+			: (Array.isArray(config?.property) ? config.property : []);
+	} catch { /* ignore parse error */ }
+
+	const itemList = sample
+		.map((f) => {
+			const p = f.properties || {};
+			if (propDefs.length > 0) {
+				return propDefs
+					.filter((def) => p[def.key] != null && p[def.key] !== "" && p[def.key] !== -1)
+					.map((def) => `${def.name}：${p[def.key]}`)
+					.join("，") || "未命名";
+			}
+			// Fallback: try common name keys
+			return p.name || p.stop_name || p.title || p.location || "未命名";
+		})
+		.join("；");
+
+	const extra = features.length > 20 ? "（以下列出前 20 個）" : "";
+	const context = `等時圈範圍內共找到 ${features.length} 個${title}${extra}：${itemList}。`;
+	const question = userQuestion.value.trim()
+		? userQuestion.value.trim()
+		: "請用繁體中文幫我摘要這些資訊。";
+
+	chatStore.isOpen = true;
+	chatStore.view = "chat";
+	await chatStore.addQueryData({
+		role: "user",
+		content: `${context}\n${question}`,
+	});
+
 	showAIInput.value = false;
 	userQuestion.value = "";
 }

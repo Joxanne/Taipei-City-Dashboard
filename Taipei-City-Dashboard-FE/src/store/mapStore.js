@@ -2881,12 +2881,16 @@ export const useMapStore = defineStore("map", {
 		},
 		removeIsochroneOverlay() {
 			if (!this.map) return;
-			if (this.map.getLayer("isochrone-fill"))
-				this.map.removeLayer("isochrone-fill");
-			if (this.map.getLayer("isochrone-line"))
-				this.map.removeLayer("isochrone-line");
-			if (this.map.getSource("isochrone-src"))
-				this.map.removeSource("isochrone-src");
+			try {
+				if (this.map.getLayer("isochrone-fill"))
+					this.map.removeLayer("isochrone-fill");
+				if (this.map.getLayer("isochrone-line"))
+					this.map.removeLayer("isochrone-line");
+				if (this.map.getSource("isochrone-src"))
+					this.map.removeSource("isochrone-src");
+			} catch (e) {
+				// Mapbox may still be processing tiles when source is removed
+			}
 			this.isochroneState.visible = false;
 			this.isochroneState.geojson = null;
 			this.clearFilteredLayer();
@@ -2947,10 +2951,14 @@ export const useMapStore = defineStore("map", {
 		},
 		clearFilteredLayer() {
 			if (!this.map) return;
-			if (this.map.getLayer("filtered-poi-layer"))
-				this.map.removeLayer("filtered-poi-layer");
-			if (this.map.getSource("filtered-poi-source"))
-				this.map.removeSource("filtered-poi-source");
+			try {
+				if (this.map.getLayer("filtered-poi-layer"))
+					this.map.removeLayer("filtered-poi-layer");
+				if (this.map.getSource("filtered-poi-source"))
+					this.map.removeSource("filtered-poi-source");
+			} catch (e) {
+				// Mapbox may still be processing tiles when source is removed
+			}
 		},
 	},
 });
