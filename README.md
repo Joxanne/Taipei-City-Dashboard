@@ -1,5 +1,41 @@
 # <img src='Taipei-City-Dashboard-FE/src/assets/images/TUIC.svg' height='28'> Taipei City Dashboard
 
+## My Contribution — 2026 雙北城市黑客松 (Twin Cities Hackathon)
+
+> **Context:** This fork was developed as part of the **2026 Twin Cities Hackathon** under **NCHU ICT Lab**, contributing new transit and environmental intelligence features to Taipei City's open-source urban dashboard.
+
+### Features I Built
+
+| Module | Description | Tech |
+| --- | --- | --- |
+| **Bus Route Search** | Multi-level query API — search routes by city, district, road, or stop; compute direct and 1-transfer routes between any two stops | Go, Gin, PostgreSQL |
+| **Bus Route Map Overlay** | Visualizes bus route polylines and stop positions as interactive map layers | Python, GeoJSON, PostGIS |
+| **Real-time Bus Position Dashboard** | Periodic pipeline fetching live ETA data from Taipei/New Taipei Open APIs; displays nearest bus arrival time per stop on map | Python, psycopg2, tcgbusfs API |
+| **Environmental Data Pipelines** | Automated Airflow DAGs for precipitation probability, temperature/humidity, street trees, PM2.5, WiFi hotspots, and weather observations | Apache Airflow, Python, Google Cloud Composer |
+
+### System Architecture (Bus Module)
+
+```text
+Taipei / New Taipei Open API (tcgbusfs .gz feeds)
+        ↓ Python pipeline (gzip → JSON → preprocess)
+   PostgreSQL (3 normalized tables)
+     bus_route_tpe / bus_stop_tpe / bus_route_stops_tpe
+        ↓ Go / Gin REST API (10+ endpoints)
+   GET /api/v1/bus/stops
+   GET /api/v1/bus/transfer          ← direct + 1-transfer routing
+   GET /api/v1/bus/lookup/routes
+        ↓ GeoJSON export
+   Leaflet map overlay (route polylines + stop ETA heatmap)
+```
+
+### Tech Stack
+
+`Python` `Go` `Gin` `PostgreSQL` `PostGIS` `Apache Airflow` `Google Cloud Composer` `GeoJSON` `psycopg2` `Vue.js` `Docker`
+
+**APIs integrated:** Taipei Open Data Platform (`data.taipei`), tcgbusfs real-time bus feed (Taipei + New Taipei)
+
+---
+
 ## Introduction
 
 Taipei City Dashboard is a data visualization platform developed by [Taipei Urban Intelligence Center (TUIC)](https://citydashboard.taipei/documentation/en).
