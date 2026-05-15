@@ -86,3 +86,4 @@ DataPreprocess/
 .copilot/
 pyproject.toml
 uv.lock
+.venv/
